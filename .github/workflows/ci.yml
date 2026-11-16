@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Tests Django (SQLite + PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: radius
+          POSTGRES_USER: radius
+          POSTGRES_PASSWORD: radius-ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U radius" --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Installer les dépendances
+        run: pip install -r backend/requirements.txt
+      - name: Vérifications Django et migrations
+        working-directory: backend
+        run: |
+          set -o pipefail
+          { python manage.py check && python manage.py makemigrations --check --dry-run; } 2>&1 | tee ../check.log
+      - name: Tests (SQLite)
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python manage.py test -v 2 2>&1 | tee ../sqlite.log
+      - name: Tests (PostgreSQL)
+        working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_NAME: radius
+          DB_USER: radius
+          DB_PASSWORD: radius-ci
+        run: |
+          set -o pipefail
+          python manage.py test -v 2 2>&1 | tee ../postgres.log
+      - name: Syntaxe JavaScript
+        run: |
+          python3 -c "s=open('index.html',encoding='utf-8').read();open('/tmp/console.js','w',encoding='utf-8').write(s.split('<script>')[1].split('</script>')[0])"
+          node --check /tmp/console.js
+          node --check backend/core/static/console/console-api.js
+      - name: Rapport d'erreur
+        if: failure()
+        run: |
+          sh .github/report.sh "check" check.log
+          sh .github/report.sh "tests-sqlite" sqlite.log
+          sh .github/report.sh "tests-postgres" postgres.log
+
+  stack:
+    name: Pile complète (Docker + FreeRADIUS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Préparer .env
+        run: |
+          cp .env.example .env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci-db-pass/; s/^DJANGO_SUPERUSER_PASSWORD=.*/DJANGO_SUPERUSER_PASSWORD=ci-admin-pass/' .env
+      - name: Démarrer la pile
+        run: docker compose up -d --build
+      - name: Attendre FreeRADIUS
+        run: |
+          for i in $(seq 1 90); do
+            if docker compose logs radius 2>/dev/null | grep -q "Ready to process requests"; then echo "RADIUS prêt"; exit 0; fi
+            sleep 4
+          done
+          echo "RADIUS n'a pas démarré"; exit 1
+      - name: Authentification RADIUS (Accept et Reject)
+        run: |
+          docker compose exec -T radius radtest test test1234 localhost 0 testing123 | tee accept.log
+          grep -q "Access-Accept" accept.log
+          grep -q "Session-Timeout" accept.log
+          docker compose exec -T radius radtest test mauvais localhost 0 testing123 | tee reject.log || true
+          grep -q "Access-Reject" reject.log
+      - name: Comptabilité RADIUS
+        run: |
+          printf 'User-Name=test\nAcct-Status-Type=Start\nAcct-Session-Id=ci-1\nFramed-IP-Address=10.10.1.50\nCalling-Station-Id=AA-BB-CC-DD-EE-01\nNAS-IP-Address=127.0.0.1\n' \
+            | docker compose exec -T radius radclient localhost:1813 acct testing123 | tee acct.log
+          grep -q "Accounting-Response" acct.log
+          docker compose exec -T web python manage.py shell -c "from radius.models import RadAcct; n=RadAcct.objects.filter(username='test', acctstoptime__isnull=True).count(); print('sessions ouvertes', n); assert n == 1"
+      - name: Ticket vendu puis activé, puis RADIUS
+        run: |
+          code=$(docker compose exec -T web python manage.py shell -c "
+          from django.db import transaction
+          from core import services
+          from core.models import Reseller, Plan
+          with transaction.atomic():
+              r = Reseller.objects.get(name='Kiosque Victoire')
+              v = services.sell_voucher(r, Plan.objects.get(name='Express 1 h'), '', 'ci')
+              services.redeem_voucher(v.code)
+          print(v.code)" | tail -n 1 | tr -d '\r')
+          echo "ticket $code"
+          docker compose exec -T radius radtest "$code" "$code" localhost 0 testing123 | tee voucher.log
+          grep -q "Access-Accept" voucher.log
+      - name: Pages web
+        run: |
+          curl -fsS http://localhost:8000/healthz
+          curl -fsS http://localhost:8000/portal/ | grep -q "Code du ticket"
+          curl -fsS -o /dev/null -w "%{http_code}\n" http://localhost:8000/console/ | grep -q "302"
+          curl -fsS http://localhost:8000/static/console/console-api.js | grep -q "HOTSPOT_API"
+      - name: Console connectée (session admin)
+        run: |
+          curl -fsS -c jar -b jar http://localhost:8000/accounts/login/ -o login.html
+          token=$(grep csrftoken jar | awk '{print $7}')
+          curl -fsS -c jar -b jar -X POST -H "Referer: http://localhost:8000/accounts/login/" \
+            -d "csrfmiddlewaretoken=$token&username=admin&password=ci-admin-pass&next=/console/" \
+            http://localhost:8000/accounts/login/ -o /dev/null
+          curl -fsS -b jar http://localhost:8000/console/ | grep -q "HOTSPOT_STATE"
+          curl -fsS -b jar http://localhost:8000/api/console/state/ | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['ok'] and d['plans'] and d['sessions'], d.keys(); print(len(d['users']), 'utilisateurs,', len(d['sessions']), 'sessions')"
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: |
+          docker compose ps -a > ps.log 2>&1 || true
+          docker compose logs --no-color web > web.log 2>&1 || true
+          docker compose logs --no-color radius > radius.log 2>&1 || true
+          docker compose logs --no-color worker > worker.log 2>&1 || true
+          sh .github/report.sh "compose-ps" ps.log 30
+          sh .github/report.sh "web" web.log 80
+          sh .github/report.sh "radius" radius.log 120
+          sh .github/report.sh "worker" worker.log 40
+          for f in accept.log reject.log acct.log voucher.log; do sh .github/report.sh "$f" $f 40; done
+      - name: Arrêt
+        if: always()
+        run: docker compose down -v

@@ -1,5 +1,7 @@
 # HotSpot Pro — Gestion de hotspots Wi-Fi sur RADIUS
 
+[![CI](https://github.com/kams77/HOTSPOT_GED/actions/workflows/ci.yml/badge.svg)](https://github.com/kams77/HOTSPOT_GED/actions/workflows/ci.yml)
+
 Plateforme de gestion et d'administration de hotspots Wi-Fi : console d'administration, portail captif, tickets, Mobile Money RDC, revendeurs, et serveur FreeRADIUS. Interface en français, prix en francs congolais.
 
 Le dépôt contient deux choses :
@@ -164,10 +166,24 @@ Les comptes du personnel se créent dans `/admin/` et reçoivent un groupe : **S
 
 ---
 
-## 6. État du projet
+## 6. Vérification automatique
 
-Ce qui est relié au serveur : utilisateurs, sessions et déconnexion (CoA), forfaits, tickets et lots, point de vente, Mobile Money, distribution et recharges, routeurs, réclamations, paramètres, permissions, journal d'audit, historique des connexions, recettes et fréquentation.
+À chaque envoi sur GitHub, l'intégration continue (`.github/workflows/ci.yml`) :
 
-Ce qui reste en démonstration dans la console : publicités et campagnes, politiques et filtrage web, inventaire des points d'accès, types d'appareils. Les modèles existent côté serveur et se gèrent dans `/admin/`, mais ils n'ont pas encore de logique ni d'écran relié.
+1. vérifie la configuration Django et que les migrations correspondent aux modèles ;
+2. lance les tests automatiques sur SQLite puis sur PostgreSQL ;
+3. vérifie la syntaxe JavaScript de la console ;
+4. démarre toute la pile Docker, puis teste FreeRADIUS pour de vrai : connexion acceptée et refusée, comptabilité d'une session, ticket vendu puis activé, pages du portail et console connectée avec un compte administrateur.
 
-Le serveur n'a pas encore été testé avec du matériel réel. Commencez par les tests `radtest` ci-dessus, puis avec un seul routeur.
+Le badge en haut de cette page indique si la dernière version passe ces vérifications.
+
+## 7. État du projet
+
+Relié au serveur : utilisateurs, sessions et déconnexion (CoA), forfaits, tickets et lots, point de vente, Mobile Money, distribution et recharges, routeurs, réclamations, paramètres, permissions, journal d'audit, historique des connexions, recettes et fréquentation, publicités (affichées sur le portail), campagnes SMS, règles et catégories de filtrage, inventaire des bornes.
+
+Ce qui demande votre matériel ou vos fournisseurs :
+
+- **Filtrage web et QoS** : les catégories et règles sont enregistrées, mais c'est le routeur (DNS filtrant, files d'attente) qui les applique.
+- **Charge, canaux et réseaux suspects des bornes** : à intégrer avec le contrôleur du constructeur (API UniFi, Omada…).
+- **Mobile Money et SMS réels** : à adapter au format de l'agrégateur et du fournisseur choisis (`core/momo.py`, `core/sms.py`).
+- **Essai sur un vrai routeur** : la pile est testée automatiquement avec FreeRADIUS, mais pas encore avec un routeur physique. Commencez avec un seul routeur.

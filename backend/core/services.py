@@ -132,10 +132,9 @@ def update_quota_reply(sub):
     RadReply.objects.filter(username=sub.username, attribute__startswith='ChilliSpot-Max-Total').delete()
     if sub.plan.quota:
         remaining = max(0, sub.plan.quota * MB - int(sub.used_mb * MB))
-        RadReply.objects.bulk_create([
-            RadReply(username=sub.username, attribute='ChilliSpot-Max-Total-Octets', op=':=', value=str(remaining & 0xFFFFFFFF)),
-            RadReply(username=sub.username, attribute='ChilliSpot-Max-Total-Gigawords', op=':=', value=str(remaining >> 32)),
-        ])
+        # Attribut 32 bits : au-delà de 4 Go par session, la tâche refresh_usage coupe au quota global.
+        RadReply.objects.create(username=sub.username, attribute='ChilliSpot-Max-Total-Octets', op=':=',
+                                value=str(min(remaining, 0xFFFFFFFF)))
 
 
 def sync_subscriber(sub):

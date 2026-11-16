@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>HotSpot Pro Console</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: console d'opérateur — rail de navigation sombre à gauche, plan de travail clair à droite ; sur téléphone, le rail devient une barre défilante en haut. */
+:root{
+  --bg:#f2f5f6; --surface:#ffffff; --surface2:#e8eef0; --line:#d4dde0; --fg:#13232a; --muted:#5a6b73;
+  --accent:#0d6e66; --accent-fg:#ffffff; --accent-soft:#d5ebe8; --bar2:#d18a1f;
+  --ok:#1d7439; --okbg:#dbeee1; --warn:#865600; --warnbg:#f9eac6; --bad:#b0251d; --badbg:#f7d9d6; --mutebg:#e5eaec;
+  --side:#0f2a33; --side-fg:#c9dfe2; --side-dim:#7f9ca2; --side-active:#1c4753;
+  --f-display:"Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0d1518; --surface:#132025; --surface2:#19292f; --line:#25383e; --fg:#e2ebed; --muted:#91a5ac;
+  --accent:#3db5a6; --accent-fg:#05201c; --accent-soft:#153a3a; --bar2:#e0a33a;
+  --ok:#72d18f; --okbg:#163324; --warn:#f0c062; --warnbg:#382c10; --bad:#ff8b80; --badbg:#3c1b19; --mutebg:#203036;
+  --side:#091114; --side-fg:#b8ccd0; --side-dim:#6b858b; --side-active:#163238; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0d1518; --surface:#132025; --surface2:#19292f; --line:#25383e; --fg:#e2ebed; --muted:#91a5ac;
+  --accent:#3db5a6; --accent-fg:#05201c; --accent-soft:#153a3a; --bar2:#e0a33a;
+  --ok:#72d18f; --okbg:#163324; --warn:#f0c062; --warnbg:#382c10; --bad:#ff8b80; --badbg:#3c1b19; --mutebg:#203036;
+  --side:#091114; --side-fg:#b8ccd0; --side-dim:#6b858b; --side-active:#163238; color-scheme:dark }
+
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+*{box-sizing:border-box}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:1.6rem;font-weight:800}
+h2{font-size:1.05rem;font-weight:700}
+h3{font-size:.95rem;font-weight:700}
+p{margin:0}
+.mono{font-family:var(--f-mono);font-size:.86em}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100%}
+.side{background:var(--side);color:var(--side-fg);position:sticky;top:0;height:100vh;overflow-y:auto;padding-block:20px;padding-left:max(14px, env(safe-area-inset-left, 0px));padding-right:14px;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.brand svg{flex:none}
+.brand b{font-family:var(--f-display);font-size:1.05rem;color:#fff;letter-spacing:.01em;display:block;line-height:1.1}
+.brand small{color:var(--side-dim);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:14px}
+.nav-group{display:flex;flex-direction:column;gap:2px}
+.nav-group > span{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--side-dim);padding:0 8px 4px}
+.nav a{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--side-fg);text-decoration:none;padding:7px 8px;border-radius:6px;font-weight:500;white-space:nowrap}
+.nav a:hover{background:rgba(255,255,255,.06)}
+.nav a.on{background:var(--side-active);color:#fff}
+.nav a em{font-style:normal;font-size:.72rem;font-family:var(--f-mono);background:rgba(255,255,255,.1);padding:0 6px;border-radius:9px}
+.side-foot{margin-top:auto;font-size:.75rem;color:var(--side-dim);padding:0 8px;display:flex;flex-direction:column;gap:2px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;vertical-align:middle}
+
+main{min-width:0;padding-block:26px 60px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.head p{color:var(--muted);margin-top:4px;max-width:65ch}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:6px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+a.btn{text-decoration:none;color:var(--fg)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:3px 9px;font-size:.82rem}
+.btn.danger{color:var(--bad)}
+.btn.danger:hover{border-color:var(--bad)}
+.btn.pri.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.panel-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.kpi{padding:14px 16px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi:first-child{border-left:0}
+.kpi span{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.kpi b{font-family:var(--f-display);font-size:1.6rem;font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi small{color:var(--muted);font-size:.8rem}
+@media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi:nth-child(3){border-left:0}.kpi:nth-child(n+3){border-top:1px solid var(--line)}}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.inp{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 10px;min-width:0}
+.inp:focus{border-color:var(--accent);outline:none}
+.filters .inp[type=search]{flex:1 1 220px}
+
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th{text-align:left;font-weight:600;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--surface2);padding:8px 10px;white-space:nowrap}
+td{padding:8px 10px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+td.wrap-c{white-space:normal;min-width:180px}
+tr:hover td{background:color-mix(in srgb, var(--accent-soft) 35%, transparent)}
+td .row-act{display:flex;gap:4px;justify-content:flex-end}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:10px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.ok{background:var(--okbg);color:var(--ok)} .warn{background:var(--warnbg);color:var(--warn)}
+.bad{background:var(--badbg);color:var(--bad)} .mute{background:var(--mutebg);color:var(--muted)}
+.info{background:var(--accent-soft);color:var(--accent)}
+
+.meter{width:110px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+.meter i{display:block;height:100%;background:var(--accent)}
+.meter i.hi{background:var(--bad)}
+
+.list{display:flex;flex-direction:column}
+.li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);min-width:0}
+.li:first-child{border-top:0}
+.li > div{min-width:0}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;border-left:4px solid}
+.alert.warn{border-color:var(--warn)} .alert.bad{border-color:var(--bad)} .alert.info{border-color:var(--accent)}
+
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--f-mono)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .b1{fill:var(--accent)} .chart .b2{fill:var(--bar2)}
+.legend{display:flex;gap:14px;font-size:.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.hbar{display:grid;grid-template-columns:minmax(90px,140px) minmax(0,1fr) auto;gap:10px;align-items:center;padding:5px 0}
+.hbar .track{height:10px;background:var(--surface2);border-radius:5px;overflow:hidden}
+.hbar .track i{display:block;height:100%;background:var(--accent);border-radius:5px}
+
+.attr{background:var(--surface2);border-radius:8px;padding:12px;font-family:var(--f-mono);font-size:.82rem;overflow-x:auto;white-space:pre;margin:0;line-height:1.6}
+.attr .k{color:var(--accent)} .attr .c{color:var(--muted)}
+
+/* Planche de tickets */
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.ticket{border:1.5px dashed var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;background:var(--surface)}
+.ticket .tk-h{display:flex;justify-content:space-between;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.ticket code{font-family:var(--f-mono);font-size:1.15rem;font-weight:500;letter-spacing:.12em;color:var(--fg)}
+.ticket small{color:var(--muted);font-size:.75rem}
+
+/* Portail captif */
+.portal-wrap{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:860px){.portal-wrap{grid-template-columns:minmax(0,1fr)}}
+.phone{border:10px solid #1a2328;border-radius:30px;background:#f7faf9;color:#14232a;overflow:hidden;max-width:360px;width:100%;margin:0 auto;box-shadow:0 18px 40px rgba(0,0,0,.18)}
+.phone .ph-top{background:#0d6e66;color:#fff;padding:22px 18px 18px;display:flex;flex-direction:column;gap:4px}
+.phone .ph-top b{font-family:var(--f-display);font-size:1.25rem}
+.phone .ph-top span{font-size:.82rem;opacity:.85}
+.phone .ph-body{padding:16px 18px 22px;display:flex;flex-direction:column;gap:12px;min-height:400px}
+.phone .tabs{display:grid;grid-template-columns:1fr 1fr;background:#e2ebe9;border-radius:8px;padding:3px}
+.phone .tabs button{border:0;background:transparent;padding:7px;border-radius:6px;cursor:pointer;font-weight:600;font-size:.85rem;color:#3c5058}
+.phone .tabs button.on{background:#fff;color:#0d6e66}
+.phone label{font-size:.78rem;font-weight:600;color:#3c5058;display:flex;flex-direction:column;gap:4px}
+.phone input,.phone select{border:1px solid #c5d3d1;border-radius:8px;padding:10px;background:#fff;color:#14232a;font-size:.95rem}
+.phone .go{background:#0d6e66;color:#fff;border:0;border-radius:8px;padding:11px;font-weight:600;cursor:pointer;font-size:.95rem}
+.phone .msg{font-size:.82rem;padding:8px 10px;border-radius:6px}
+.phone .msg.e{background:#f7d9d6;color:#9a1f18}
+.phone .msg.s{background:#dbeee1;color:#1d6332}
+.phone .ops{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.phone .ops label{flex-direction:row;align-items:center;justify-content:center;gap:4px;border:1px solid #c5d3d1;border-radius:8px;padding:8px 4px;cursor:pointer;background:#fff;font-size:.75rem}
+.phone .ops input{padding:0}
+.phone .hint{font-size:.74rem;color:#5a6b73}
+.phone .hint button{border:0;background:#e2ebe9;font-family:var(--f-mono);font-size:.72rem;border-radius:4px;padding:1px 5px;cursor:pointer;color:#14232a;margin:2px}
+.steps{display:flex;flex-direction:column;gap:10px;counter-reset:s;padding:0;margin:0;list-style:none}
+.steps li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;counter-increment:s}
+.steps li::before{content:counter(s);font-family:var(--f-mono);font-weight:500;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:.8rem}
+
+/* Formulaires */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;color:var(--muted)}
+.form label.full{grid-column:1/-1}
+.form .chk{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-weight:500}
+.perm td{text-align:center} .perm td:first-child{text-align:left}
+
+/* Modale & toast */
+.ov{position:fixed;inset:0;background:rgba(6,16,20,.55);display:grid;place-items:center;z-index:50;padding:16px}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:12px;width:min(560px,100%);max-height:90vh;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.modal-f{display:flex;justify-content:flex-end;gap:8px}
+.toast{position:fixed;right:max(16px, env(safe-area-inset-right, 0px));bottom:calc(16px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:8px;z-index:60;max-width:calc(100% - 32px);font-weight:500}
+
+
+.sw{appearance:none;-webkit-appearance:none;width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;cursor:pointer;flex:none;margin:0;vertical-align:middle}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);transition:left .15s}
+.sw:checked{background:var(--accent)} .sw:checked::after{left:16px}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.opt:first-child{border-top:0} .opt > div{min-width:0}
+.adbox{border-radius:10px;padding:26px 16px;text-align:center;display:flex;flex-direction:column;gap:4px;background:linear-gradient(135deg,#0d6e66,#164f7a);color:#fff}
+.adbox small{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;opacity:.8}
+.adbox b{font-family:var(--f-display);font-size:1.2rem}
+.note{font-size:.82rem;color:var(--muted);background:var(--surface2);padding:10px 12px;border-radius:8px}
+
+.topbar{max-width:1180px;margin:0 auto 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.search{position:relative;flex:1 1 280px;min-width:0}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.search .inp{width:100%;padding-left:32px;padding-right:30px}
+.search kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:var(--f-mono);font-size:.72rem;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--muted);pointer-events:none}
+.gsr{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);z-index:30;max-height:60vh;overflow-y:auto;padding:6px}
+.gsr h4{margin:8px 8px 2px;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.gsr button{display:flex;justify-content:space-between;gap:10px;width:100%;border:0;background:none;text-align:left;padding:7px 8px;border-radius:6px;cursor:pointer;color:var(--fg)}
+.gsr button:hover,.gsr button:focus-visible{background:var(--surface2)}
+.gsr button small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.role{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);white-space:nowrap}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--fg)}
+th[aria-sort=ascending]::after{content:" ▲";font-size:.6rem}
+th[aria-sort=descending]::after{content:" ▼";font-size:.6rem}
+.pager{display:flex;justify-content:center;padding-top:10px}
+.lnk{border:0;background:none;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-align:left;font-size:inherit}
+.lnk:hover{text-decoration:underline}
+.scrim{position:fixed;inset:0;background:rgba(6,16,20,.4);z-index:39}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(540px,100%);background:var(--bg);border-left:1px solid var(--line);z-index:40;overflow-y:auto;padding-block:calc(20px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));padding-left:max(18px, env(safe-area-inset-left, 0px));padding-right:max(18px, env(safe-area-inset-right, 0px));display:flex;flex-direction:column;gap:14px;box-shadow:-14px 0 40px rgba(0,0,0,.2)}
+.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mini > div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.mini span{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.mini b{font-family:var(--f-display);font-size:1.1rem;font-variant-numeric:tabular-nums}
+.mini small{color:var(--muted);font-size:.76rem}
+.form .full{grid-column:1/-1}
+.codebig{font-family:var(--f-mono);font-size:clamp(1.5rem,6vw,2.2rem);letter-spacing:.14em;text-align:center;padding:18px 10px;border:2px dashed var(--accent);border-radius:10px;background:var(--accent-soft);color:var(--fg);font-weight:500}
+@media (max-width:860px){
+  .app{display:block}
+  .side{position:sticky;top:env(safe-area-inset-top, 0px);height:auto;z-index:20;padding-block:10px;padding-right:max(16px, env(safe-area-inset-right, 0px));padding-left:max(16px, env(safe-area-inset-left, 0px));flex-direction:row;align-items:center;gap:12px}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:21;background:var(--side)}
+  .brand small,.side-foot,.nav-group > span{display:none}
+  .nav{flex-direction:row;overflow-x:auto;gap:2px;min-width:0;scrollbar-width:none}
+  .nav-group{flex-direction:row}
+  .brand b{font-size:.95rem}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="21" r="2.6" fill="#3db5a6"/><path d="M8.5 15.5a9 9 0 0 1 13 0" stroke="#3db5a6" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M4 11a15 15 0 0 1 22 0" stroke="#3db5a6" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".55"/></svg>
+      <div><b>HotSpot Pro</b><small>Console RADIUS</small></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <span><span class="dot"></span>FreeRADIUS 3.2 · en service</span>
+      <span>Auth 1812 · Acct 1813</span>
+      <span>Données de démonstration</span>
+    </div>
+  </aside>
+  <main><div class="topbar" id="topbar"></div><div class="wrap" id="main"></div></main>
+</div>
+<div class="ov" id="ov" hidden><form class="modal" id="mform"><h2 id="mtitle"></h2><div id="mbody"></div><div class="modal-f"><button type="button" class="btn" id="mcancel">Annuler</button><button class="btn pri" id="mok">Enregistrer</button></div></form></div>
+<div class="toast" id="toast" hidden></div>
+<div class="scrim" id="scrim" hidden></div><aside class="drawer" id="drawer" hidden aria-label="Fiche client"></aside>
+
+<script>
+/* ---------- Utilitaires ---------- */
+let seed=20261111;const r=()=>(seed=seed*16807%2147483647)/2147483647;
+const ri=(a,b)=>a+Math.floor(r()*(b-a+1)), pick=a=>a[Math.floor(r()*a.length)];
+const MIN=60000, DAY=86400000, NOW=Date.now();
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fc=n=>Math.round(n).toLocaleString('fr-FR')+' FC';
+const vol=m=>m===0?'Illimité':m>=1024?(m/1024).toLocaleString('fr-FR',{maximumFractionDigits:2})+' Go':Math.round(m)+' Mo';
+const dur=m=>m>=1440?(m/1440|0)+' j'+(m%1440>=60?' '+((m%1440)/60|0)+' h':''):m>=60?(m/60|0)+' h'+(m%60?' '+m%60+' min':''):Math.max(1,Math.round(m))+' min';
+const dt=t=>new Date(t).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const d0=t=>new Date(t).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+const pill=(t,k)=>`<span class="pill ${k}">${esc(t)}</span>`;
+const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const code=(n=8,p='')=>p+Array.from({length:n},()=>ALPH[Math.floor(Math.random()*ALPH.length)]).join('');
+const mac=()=>Array.from({length:6},()=>ri(0,255).toString(16).padStart(2,'0')).join(':').toUpperCase();
+let uid=1;const id=()=>uid++;
+const OPS={'M-Pesa':['81','82','83'],'Airtel Money':['97','99','98'],'Orange Money':['84','85','89']};
+const phone=op=>'+243 '+pick(OPS[op])+' '+ri(100,999)+' '+ri(1000,9999);
+
+/* ---------- Données initiales ---------- */
+const S={settings:{org:'HotSpot Pro Kinshasa',currency:'CDF (Franc congolais)',tz:'Africa/Kinshasa',auth:1812,acct:1813,interim:300,idle:600,coa:3799,portalTitle:'Wi-Fi HotSpot Pro',portalMsg:'Connectez-vous avec votre ticket ou payez par Mobile Money.',aggregator:'Agrégateur Mobile Money (à configurer)',callback:'https://votre-domaine.cd/api/momo/callback/'}};
+S.plans=[
+ {id:id(),name:'Express 1 h',price:500,duration:60,quota:500,down:2048,up:1024,shared:1,validity:1},
+ {id:id(),name:'Journée',price:1500,duration:1440,quota:2048,down:4096,up:2048,shared:1,validity:1},
+ {id:id(),name:'Nuit 22h–6h',price:1000,duration:480,quota:3072,down:10240,up:5120,shared:1,validity:1},
+ {id:id(),name:'Semaine',price:7500,duration:10080,quota:10240,down:6144,up:3072,shared:2,validity:7},
+ {id:id(),name:'Mois illimité',price:25000,duration:43200,quota:0,down:8192,up:4096,shared:3,validity:30}];
+const plan=pid=>S.plans.find(p=>p.id==pid)||S.plans[0];
+S.nas=[
+ {id:id(),name:'HS-Gombe-01',ip:'10.10.1.1',type:'Ubiquiti UniFi',secret:'gR7v!kq2Lm',online:true,zone:'Gombe'},
+ {id:id(),name:'HS-Limete-02',ip:'10.10.2.1',type:'TP-Link Omada',secret:'Pz9#wQ4tYe',online:true,zone:'Limete'},
+ {id:id(),name:'HS-Ngaliema-03',ip:'10.10.3.1',type:'pfSense Captive Portal',secret:'Tn3$hD8sXa',online:true,zone:'Ngaliema'},
+ {id:id(),name:'HS-Kintambo-04',ip:'10.10.4.1',type:'OpenWrt + CoovaChilli',secret:'Lk5&mB1rVu',online:false,zone:'Kintambo',lastSeen:NOW-47*MIN}];
+S.resellers=[
+ {id:id(),name:'Kiosque Victoire',zone:'Kalamu',phone:'+243 81 234 5678',balance:84500,commission:10,sold:312},
+ {id:id(),name:'Boutique Matonge',zone:'Kalamu',phone:'+243 99 876 1122',balance:12000,commission:8,sold:198},
+ {id:id(),name:'Cyber Lemba',zone:'Lemba',phone:'+243 84 551 2090',balance:46000,commission:10,sold:141},
+ {id:id(),name:'Point UPN',zone:'Ngaliema',phone:'+243 97 420 3311',balance:5500,commission:7,sold:87}];
+const NAMES=['mukendi','ilunga','kasongo','tshibangu','mbuyi','nkulu','kalala','lukusa','mwamba','banza','kabeya','ngoy','mutombo','kayembe','lumbala','makiese','nsimba','lokwa','bolingo','matondo'];
+S.users=[];
+for(let i=0;i<44;i++){
+  const p=pick(S.plans), created=NOW-ri(0,24)*DAY-ri(0,1200)*MIN, src=pick(['Voucher','Voucher','Mobile Money','Mobile Money','Manuel']);
+  const expires=created+p.validity*DAY; let status=expires<NOW?'expiré':(r()<.08?'suspendu':'actif');
+  const op=pick(Object.keys(OPS));
+  S.users.push({id:id(),username:pick(NAMES)+(10+i),password:String(ri(100000,999999)),plan:p.id,phone:src==='Voucher'?'':phone(op),mac:r()<.4?mac():'',created,expires,status,used:p.quota?Math.min(p.quota,ri(5,p.quota)):ri(200,9000),source:src});
+}
+S.users.sort((a,b)=>b.created-a.created);
+const onlineNas=()=>S.nas.filter(n=>n.online);
+S.sessions=S.users.filter(u=>u.status==='actif').slice(0,19).map(u=>{const n=pick(onlineNas());return{id:id(),user:u.username,ip:n.ip.replace(/\.1$/,'.')+ri(20,250),mac:u.mac||mac(),nas:n.name,start:NOW-ri(3,320)*MIN,inMB:ri(5,900)+r(),outMB:ri(1,120)+r()}});
+S.vouchers=[];
+[['B-2611-01',0,30,0],['B-2611-02',1,24,1],['B-2610-07',3,12,2],['B-2611-03',2,18,3]].forEach(([b,pi,n,ri_])=>{
+  for(let i=0;i<n;i++){const used=r()<.42;S.vouchers.push({id:id(),code:code(8),plan:S.plans[pi].id,batch:b,reseller:S.resellers[ri_].id,status:used?'utilisé':'disponible',created:NOW-ri(1,12)*DAY,usedAt:used?NOW-ri(0,6)*DAY:null})}
+});
+S.payments=[];
+for(let i=0;i<34;i++){const op=pick(Object.keys(OPS)),p=pick(S.plans),x=r();
+  S.payments.push({id:id(),ref:'PAY-'+(260000+i*37),tx:op.slice(0,2).toUpperCase()+ri(10000000,99999999),phone:phone(op),op,plan:p.id,amount:p.price,status:x<.84?'réussi':x<.9?'en attente':'échoué',date:NOW-ri(0,13)*DAY-ri(0,900)*MIN});}
+S.payments.sort((a,b)=>b.date-a.date);
+S.daily=Array.from({length:14},(_,i)=>({date:NOW-(13-i)*DAY,v:ri(28,90)*500,m:ri(20,80)*500+(i>8?ri(10,30)*500:0)}));
+S.admins=[{id:id(),name:'Administrateur principal',login:'admin',role:'Super administrateur',last:NOW-4*MIN,on:true},{id:id(),name:'Grâce M.',login:'grace.m',role:'Opérateur réseau',last:NOW-3*60*MIN,on:true},{id:id(),name:'Patrick L.',login:'patrick.l',role:'Caissier',last:NOW-26*60*MIN,on:true},{id:id(),name:'Kiosque Victoire',login:'kiosque.victoire',role:'Revendeur',last:NOW-2*DAY,on:true}];
+S.roles=['Super administrateur','Opérateur réseau','Caissier','Revendeur'];
+S.perms=[['Tableau de bord',[1,1,1,1]],['Sessions : déconnecter',[1,1,0,0]],['Utilisateurs : créer / modifier',[1,1,1,0]],['Forfaits : modifier les prix',[1,0,0,0]],['Vouchers : générer un lot',[1,1,1,0]],['Vouchers : vendre (son stock)',[1,0,1,1]],['Mobile Money : valider / rejeter',[1,0,1,0]],['Routeurs NAS : ajouter / secrets',[1,1,0,0]],['Rapports financiers',[1,0,1,0]],['Paramètres & administrateurs',[1,0,0,0]]];
+S.audit=[];
+const log=(who,what,kind='info')=>S.audit.unshift({t:Date.now(),who:['admin','grace.m','patrick.l'].includes(who)?me().login:who,what,kind});
+[['admin','Lot B-2611-03 généré : 18 tickets « Nuit 22h–6h »',2*60],['grace.m','NAS HS-Kintambo-04 : aucune réponse au Status-Server','47','warn'],['patrick.l','Paiement PAY-260074 validé manuellement',3*60],['admin','Prix du forfait « Semaine » : 8 000 → 7 500 FC',26*60],['admin','Utilisateur kabeya21 suspendu (partage de compte)',30*60,'warn'],['grace.m','Session ilunga13 déconnectée (CoA Disconnect-Request)',50*60],['admin','Connexion à la console depuis 41.243.12.88',52*60]].forEach(([w,a,m,k])=>S.audit.push({t:NOW-(+m)*MIN,who:w,what:a,kind:k||'info'}));
+
+/* ---------- Données : distribution, points d'accès, accès, marketing, conformité ---------- */
+S.plans.push({id:id(),name:'Accès gratuit sponsorisé',price:0,duration:30,quota:100,down:1024,up:512,shared:1,validity:1,free:true});
+S.op={wallet:1250000};
+S.distributors=[{id:id(),name:'Distribution Kin-Est',zone:'Kalamu · Lemba · Limete',phone:'+243 81 990 4410',wallet:420000,share:12},{id:id(),name:'Distribution Kin-Ouest',zone:'Gombe · Ngaliema · Kintambo',phone:'+243 99 310 7781',wallet:285000,share:12}];
+S.resellers.forEach((x,i)=>x.dist=S.distributors[i<3?0:1].id);
+const APM={'Ubiquiti UniFi':['UniFi U6 Lite','UniFi U6 Pro'],'TP-Link Omada':['EAP245','EAP660 HD'],'pfSense Captive Portal':['Ruckus R550','Aruba AP-505'],'OpenWrt + CoovaChilli':['GL.iNet B1300','Cudy AP3000']};
+S.aps=[];S.nas.forEach(n=>{['Hall','Terrasse','Étage1','Parking'].slice(0,n.online?ri(2,4):3).forEach(sp=>{const up=n.online&&r()<.9;S.aps.push({id:id(),name:'AP-'+n.zone+'-'+sp,nas:n.name,model:pick(APM[n.type]),mac:mac(),ch:pick(['1','6','11'])+' / '+pick(['36','44','149','157']),clients:up?ri(0,24):0,util:up?ri(8,88):0,fw:ri(5,7)+'.'+ri(0,9)+'.'+ri(1,40),up,uptime:ri(1,40)*DAY})});n.visits=n.online?ri(400,1500):ri(150,300);n.ret=ri(38,68)});
+S.rogue=[{id:id(),ssid:'HotSpot Pro Free',bssid:mac(),ch:'6',rssi:-58,seen:'HS-Gombe-01',risk:'Imite votre nom de réseau'},{id:id(),ssid:'FREE_WIFI_KIN',bssid:mac(),ch:'11',rssi:-71,seen:'HS-Limete-02',risk:'Réseau ouvert inconnu sur votre canal'}];
+S.login=[{k:'voucher',n:'Ticket / voucher',d:'Code imprimé vendu par les revendeurs.',on:true},{k:'momo',n:'Achat Mobile Money',d:'M-Pesa, Airtel Money et Orange Money depuis le portail.',on:true},{k:'free',n:'Accès gratuit sponsorisé',d:'30 min et 100 Mo par jour et par appareil, après une publicité.',on:true},{k:'sms',n:'Code SMS (OTP)',d:'Code à 6 chiffres envoyé par SMS. Vérifie et identifie le numéro du client.',on:true},{k:'mac',n:'Reconnexion automatique (MAC)',d:'Un appareil déjà connecté revient sans ressaisir son code tant que son forfait est valide.',on:true},{k:'user',n:'Identifiant et mot de passe',d:'Pour les abonnés mensuels et les comptes d\'entreprise.',on:true},{k:'social',n:'Google / Facebook',d:'Nécessite une application déclarée chez chaque fournisseur.',on:false}];
+S.free={min:30,mb:100,adSec:10};
+S.policies=[{id:id(),name:'Plage horaire du forfait Nuit',scope:'Nuit 22h–6h',rule:'Connexion refusée hors de 22h–6h (attribut Login-Time).',on:true},{id:id(),name:'Quota journalier',scope:'Mois illimité',rule:'Au-delà de 5 Go dans la journée, débit réduit à 1 Mbit/s jusqu\'à minuit.',on:true},{id:id(),name:'Débit dynamique en heure de pointe',scope:'Tous les forfaits',rule:'Si un routeur dépasse 80 % de charge, débits réduits de 30 % par CoA.',on:true},{id:id(),name:'Limite de l\'accès gratuit',scope:'Accès gratuit sponsorisé',rule:'1 Mbit/s, 30 min et 100 Mo par jour et par appareil (MAC).',on:true},{id:id(),name:'Isolation des clients',scope:'Tous les routeurs',rule:'Les appareils d\'un même hotspot ne se voient pas entre eux.',on:true},{id:id(),name:'Priorité visioconférence',scope:'Semaine, Mois illimité',rule:'Trafic Meet, Zoom et Teams prioritaire (DSCP EF).',on:false}];
+S.filters=[['Contenus pour adultes',true],['Logiciels malveillants et hameçonnage',true],['Jeux d\'argent et paris',true],['Pair-à-pair (BitTorrent)',true],['Réseaux sociaux',false],['Streaming vidéo HD',false]];
+S.ads=[{id:id(),name:'Promo Semaine −20 %',sponsor:'HotSpot Pro (interne)',type:'Image',slot:'Après connexion',imp:8420,clk:612,on:true,until:NOW+9*DAY},{id:id(),name:'Boisson fraîche',sponsor:'Annonceur boissons',type:'Vidéo 15 s',slot:'Accès gratuit (avant)',imp:15210,clk:388,on:true,until:NOW+20*DAY},{id:id(),name:'Nouvelle agence Gombe',sponsor:'Banque partenaire',type:'Image',slot:'Avant connexion',imp:6105,clk:244,on:true,until:NOW+4*DAY},{id:id(),name:'Rentrée scolaire',sponsor:'Librairie partenaire',type:'Vidéo 30 s',slot:'Intermittente (toutes les 45 min)',imp:3900,clk:97,on:false,until:NOW-2*DAY}];
+S.surveys=[{q:'Comment jugez-vous la vitesse du Wi-Fi ?',a:[['Très bonne',212],['Correcte',301],['Lente',96]]},{q:'Où avez-vous acheté votre accès ?',a:[['Kiosque ou boutique',344],['Mobile Money',259],['Autre',31]]}];
+S.campaigns=[{id:id(),name:'Rappel expiration J-1',seg:'Forfait expirant dans 24 h',ch:'SMS',sent:132,conv:41,date:NOW-DAY,st:'Automatique'},{id:id(),name:'Retour des inactifs',seg:'Comptes expirés',ch:'SMS',sent:410,conv:37,date:NOW-5*DAY,st:'Envoyée'},{id:id(),name:'Lancement du forfait Nuit',seg:'Tous les clients avec téléphone',ch:'SMS + portail',sent:1880,conv:164,date:NOW-12*DAY,st:'Envoyée'}];
+S.hours=Array.from({length:24},(_,h)=>Math.round((h<6?6:h<9?28:h<12?55:h<14?72:h<18?60:h<22?96:38)*(.8+r()*.4)));
+S.devices=[['Android',68],['iPhone / iOS',17],['Windows',11],['Autres',4]];
+S.retention=12;
+S.cdr=Array.from({length:60},()=>{const u=pick(S.users),n=pick(S.nas),st=NOW-ri(1,29)*DAY-ri(0,1400)*MIN,d=ri(4,240);return{start:st,stop:st+d*MIN,user:u.username,mac:u.mac||mac(),ip:n.ip.replace(/\.1$/,'.')+ri(20,250),nas:n.name,inMB:ri(2,900),outMB:ri(1,90)}}).sort((a,b)=>b.start-a.start);
+const DOM=[['whatsapp.net','Messagerie','autorisé'],['youtube.com','Vidéo','autorisé'],['google.com','Recherche','autorisé'],['facebook.com','Réseaux sociaux','autorisé'],['tiktok.com','Réseaux sociaux','autorisé'],['radiookapi.net','Actualités','autorisé'],['paris-sportifs.example','Jeux d\'argent et paris','bloqué'],['tracker-p2p.example','Pair-à-pair (BitTorrent)','bloqué']];
+S.weblog=Array.from({length:24},()=>{const u=pick(S.users),d=pick(DOM);return{t:NOW-ri(1,600)*MIN,user:u.username,dom:d[0],cat:d[1],act:d[2]}}).sort((a,b)=>b.t-a.t);
+
+/* ---------- Données : rôles, ventes revendeurs, réclamations ---------- */
+S.role=0;
+S.perms[0][1][3]=0;S.perms[5][0]='Point de vente : vendre son stock';
+S.perms.push(['Publicité & campagnes',[1,0,0,0]],['Conformité : CDR et journaux web',[1,1,0,0]],['Réclamations clients : traiter',[1,1,1,0]]);
+S.vouchers.forEach(v=>{if(v.reseller&&v.status==='utilisé')v.soldAt=v.usedAt-ri(10,900)*MIN;else if(v.reseller&&v.status==='disponible'&&r()<.2){v.status='vendu';v.soldAt=NOW-ri(5,600)*MIN;v.soldPhone=r()<.5?phone(pick(Object.keys(OPS))):''}});
+S.topups=[{id:id(),res:S.resellers[1].id,amount:30000,date:NOW-95*MIN,status:'en attente'}];
+(()=>{const TK=[['Paiement non reçu','haute','J\'ai payé 1 500 FC par M-Pesa mais je n\'ai pas reçu mon code.'],['Connexion impossible','haute','Le portail affiche « Code introuvable » alors que je viens d\'acheter le ticket au kiosque.'],['Débit lent','normale','Internet très lent le soir vers 20 h à Limete.'],['Déconnexions fréquentes','normale','Je suis déconnecté toutes les dix minutes environ.'],['Ticket refusé','normale','Mon forfait Semaine ne marche pas sur mon deuxième téléphone.'],['Débit lent','basse','Les vidéos chargent mal en journée.']];
+ const wp=S.users.filter(u=>u.phone);
+ S.tickets=TK.map((t,i)=>{const u=wp[(i*3)%wp.length],st=i<2?'ouvert':i<4?'en cours':'résolu',c=NOW-ri(1,70)*60*MIN;return{id:id(),ref:'REC-'+(1041+i),user:u.username,phone:u.phone,cat:t[0],prio:t[1],msg:t[2],status:st,assignee:st==='ouvert'?'':pick(['grace.m','patrick.l']),created:c,resolvedAt:st==='résolu'?c+ri(30,300)*MIN:null,notes:st==='ouvert'?[]:[{t:c+20*MIN,who:'grace.m',txt:'Pris en charge, vérification en cours.'}]}});})();
+
+/* ---------- Navigation ---------- */
+const NAV=[['Supervision',[['tableau','Tableau de bord'],['sessions','Sessions actives'],['analytique','Analytique visiteurs']]],['Clients',[['utilisateurs','Utilisateurs'],['support','Réclamations'],['forfaits','Forfaits'],['vouchers','Tickets / Vouchers'],['politiques','Politiques & QoS']]],['Ventes',[['point-de-vente','Point de vente'],['paiements','Mobile Money'],['revendeurs','Distribution'],['marketing','Publicité & campagnes'],['rapports','Rapports']]],['Réseau',[['routeurs','Routeurs (NAS)'],['points-acces','Points d\'accès'],['portail','Portail captif']]],['Système',[['conformite','Conformité & journaux'],['journal','Journal d\'audit'],['parametres','Paramètres'],['indio','Correspondance Indio']]]];
+const VIEWS={};let cur='tableau', curList=null, F={};
+function route(){closeDrawer();hideGS();PDVRES=null;cur=(location.hash||'#tableau').slice(1);if(!VIEWS[cur]||!canView(cur))cur=firstView();draw();window.scrollTo(0,0)}
+function navHTML(){const badge={sessions:S.sessions.length,paiements:S.payments.filter(p=>p.status==='en attente').length||'',support:S.tickets.filter(t=>t.status==='ouvert').length||'',revendeurs:S.topups.filter(t=>t.status==='en attente').length||''};
+ return NAV.map(([g,items])=>[g,items.filter(([k])=>canView(k))]).filter(([,items])=>items.length).map(([g,items])=>`<div class="nav-group"><span>${g}</span>${items.map(([k,l])=>`<a href="#${k}" class="${k===cur?'on':''}">${l}${badge[k]?`<em>${badge[k]}</em>`:''}</a>`).join('')}</div>`).join('')}
+function draw(){saveSoon();curList=null;$('#nav').innerHTML=navHTML();$('#main').innerHTML=VIEWS[cur]();if(curList)curList();const on=$('#nav a.on');if(on&&innerWidth<=860)on.scrollIntoView({inline:'center',block:'nearest'});if(DU)openUser(DU)}
+function refresh(){saveSoon();if(DU)openUser(DU);$('#nav').innerHTML=navHTML();if(curList)curList();else draw()}
+const head=(t,p,act='')=>`<div class="head"><div><h1>${t}</h1><p>${p}</p></div><div class="actions">${act}</div></div>`;
+const tbl=(h,rows,empty='Aucun résultat pour ce filtre.')=>`<div class="tw"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${h.length}" class="empty">${empty}</td></tr>`}</tbody></table></div>`;
+const sel=(nameOrId,opts,val,attr='')=>`<select class="inp" ${attr} name="${nameOrId}" id="${nameOrId}">${opts.map(([v,l])=>`<option value="${esc(v)}" ${String(v)===String(val)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+const planOpts=()=>S.plans.filter(p=>!p.free).map(p=>[p.id,`${p.name} — ${fc(p.price)}`]);
+const HB=(l,v,m,txt)=>`<div class="hbar"><span>${esc(l)}</span><div class="track"><i style="width:${m?v/m*100:0}%"></i></div><b class="num">${txt}</b></div>`;
+
+/* ---------- Modale & toast ---------- */
+let onOk=null;
+function modal(title,body,ok,fn,okLabel='Enregistrer'){ $('#mtitle').textContent=title;$('#mbody').innerHTML=body;$('#mok').textContent=okLabel;$('#mok').className='btn pri'+(ok==='danger'?' danger':'');onOk=fn;$('#ov').hidden=false;setTimeout(()=>{const f=$('#mbody input,#mbody select');if(f)f.focus()},30)}
+const closeM=()=>{$('#ov').hidden=true;onOk=null};
+$('#mcancel').onclick=closeM;$('#ov').addEventListener('click',e=>{if(e.target.id==='ov')closeM()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#ov').hidden)closeM()});
+$('#mform').addEventListener('submit',e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(onOk&&onOk(d)===false)return;closeM();refresh()});
+let tt;function toast(m){saveSoon();const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2800)}
+const confirmM=(title,text,fn,label='Confirmer')=>modal(title,`<p>${text}</p>`,'danger',()=>{fn()},label);
+
+/* ---------- Tableau de bord ---------- */
+VIEWS.tableau=()=>{
+ const actU=S.users.filter(u=>u.status==='actif').length, today=S.daily[13], yest=S.daily[12];
+ const unused=S.vouchers.filter(v=>v.status==='disponible').length, pend=S.payments.filter(p=>p.status==='en attente').length;
+ const delta=Math.round(((today.v+today.m)/(yest.v+yest.m)-1)*100);
+ const alerts=[];
+ S.nas.filter(n=>!n.online).forEach(n=>alerts.push(['bad',`<b>${esc(n.name)}</b> ne répond plus depuis ${dur((Date.now()-n.lastSeen)/MIN)}. Vérifiez l'alimentation et le lien vers ${esc(n.ip)}.`,'routeurs']));
+ S.resellers.filter(x=>x.balance<15000).forEach(x=>alerts.push(['warn',`Solde bas chez <b>${esc(x.name)}</b> : ${fc(x.balance)}.`,'revendeurs']));
+ if(pend)alerts.push(['warn',`${pend} paiement(s) Mobile Money en attente de confirmation de l'opérateur.`,'paiements']);
+ const soon=S.users.filter(u=>u.status==='actif'&&u.expires-Date.now()<DAY).length;
+ const apDown=S.aps.filter(a=>!a.up&&S.nas.find(n=>n.name===a.nas)?.online);if(apDown.length)alerts.push(['warn',`${apDown.length} borne(s) Wi-Fi injoignable(s) sur des sites en ligne.`,'points-acces']);
+ if(S.rogue.length)alerts.push(['warn',`${S.rogue.length} réseau(x) suspect(s) détecté(s), dont un qui imite votre nom de réseau.`,'points-acces']);
+ const hi=S.tickets.filter(t=>t.status!=='résolu'&&t.prio==='haute').length;if(hi)alerts.push(['bad',`${hi} réclamation(s) prioritaire(s) non résolue(s).`,'support']);
+ const tp=S.topups.filter(t=>t.status==='en attente').length;if(tp)alerts.push(['warn',`${tp} demande(s) de recharge revendeur à valider.`,'revendeurs']);
+ if(soon)alerts.push(['info',`${soon} utilisateur(s) expirent dans les prochaines 24 h.`,'utilisateurs']);
+ alerts.splice(0,alerts.length,...alerts.filter(a=>canView(a[2])));
+ return head('Tableau de bord',`Vue d'ensemble du réseau au ${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}.`,`<a class="btn" href="#vouchers">Générer des tickets</a><a class="btn pri" href="#utilisateurs">Nouvel utilisateur</a>`)+
+ `<div class="kpis">
+  <div class="kpi"><span>Sessions en ligne</span><b>${S.sessions.length}</b><small>sur ${onlineNas().length}/${S.nas.length} routeurs actifs</small></div>
+  <div class="kpi"><span>Comptes actifs</span><b>${actU}</b><small>${S.users.length} comptes au total</small></div>
+  <div class="kpi"><span>Recettes du jour</span><b>${(today.v+today.m).toLocaleString('fr-FR')}</b><small>FC · ${delta>=0?'+':''}${delta} % vs hier</small></div>
+  <div class="kpi"><span>Tickets en stock</span><b>${unused}</b><small>${S.vouchers.length-unused} déjà utilisés</small></div>
+ </div>
+ <div class="grid2">
+  <section class="panel"><div class="panel-h"><h2>Recettes des 14 derniers jours</h2><div class="legend"><span><i style="background:var(--accent)"></i>Tickets</span><span><i style="background:var(--bar2)"></i>Mobile Money</span></div></div>${chart()}</section>
+  <section class="panel"><h2>À traiter</h2>${alerts.length?`<div class="list" style="gap:8px">${alerts.map(([k,t,l])=>`<a href="#${l}" class="alert ${k}" style="text-decoration:none;color:inherit;background:var(--surface2)"><span>${t}</span></a>`).join('')}</div>`:'<p class="muted">Rien à signaler.</p>'}</section>
+ </div>
+ <div class="grid2">
+  <section class="panel"><div class="panel-h"><h2>Routeurs</h2><a class="btn sm" href="#routeurs">Gérer</a></div><div class="list">${S.nas.map(n=>{const c=S.sessions.filter(s=>s.nas===n.name).length;return`<div class="li"><div><b>${esc(n.name)}</b> <span class="muted mono">${esc(n.ip)}</span><br><small class="muted">${esc(n.type)}</small></div><div style="text-align:right">${n.online?pill('En ligne','ok'):pill('Hors ligne','bad')}<br><small class="muted num">${c} session(s)</small></div></div>`}).join('')}</div></section>
+  <section class="panel"><div class="panel-h"><h2>Derniers paiements</h2><a class="btn sm" href="#paiements">Tout voir</a></div><div class="list">${S.payments.slice(0,6).map(p=>`<div class="li"><div><span class="mono">${esc(p.phone)}</span><br><small class="muted">${esc(p.op)} · ${esc(plan(p.plan).name)} · ${dt(p.date)}</small></div><div style="text-align:right"><b class="num">${fc(p.amount)}</b><br>${stPay(p.status)}</div></div>`).join('')}</div></section>
+ </div>`;
+};
+function chart(){const W=640,H=230,L=52,B=26,T=10,R=6,max=Math.max(...S.daily.map(d=>d.v+d.m)),top=Math.ceil(max/20000)*20000,bw=(W-L-R)/14,y=v=>H-B-(v/top)*(H-B-T);
+ let g='';[0,top/2,top].forEach(v=>{g+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${(v/1000).toLocaleString('fr-FR')}k</text>`});
+ S.daily.forEach((d,i)=>{const x=L+i*bw+bw*.18,w=bw*.64;g+=`<rect class="b1" x="${x}" y="${y(d.v)}" width="${w}" height="${y(0)-y(d.v)}" rx="2"><title>${d0(d.date)} · Tickets ${fc(d.v)}</title></rect><rect class="b2" x="${x}" y="${y(d.v+d.m)}" width="${w}" height="${y(d.v)-y(d.v+d.m)}" rx="2"><title>${d0(d.date)} · Mobile Money ${fc(d.m)}</title></rect>`;if(i%2===1||i===13)g+=`<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${new Date(d.date).getDate()}</text>`});
+ return`<div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Recettes quotidiennes en francs congolais">${g}</svg></div>`}
+
+/* ---------- Sessions ---------- */
+VIEWS.sessions=()=>{curList=()=>{const q=(F.sq||'').toLowerCase(),n=F.sn||'';const rows=S.sessions.filter(s=>(!n||s.nas===n)&&(s.user+s.ip+s.mac).toLowerCase().includes(q)).map(s=>{const u=S.users.find(x=>x.username===s.user);const p=u?plan(u.plan):null;
+  return[u?`<button type="button" class="lnk mono" data-act="uopen" data-id="${u.id}">${esc(s.user)}</button>`:`<b class="mono">${esc(s.user)}</b>`,`<span class="mono">${s.ip}</span><br><small class="muted mono">${s.mac}</small>`,esc(s.nas),`<span class="num">${dur((Date.now()-s.start)/MIN)}</span>`,`<span class="num">↓ ${vol(s.inMB)}<br><span class="muted">↑ ${vol(s.outMB)}</span></span>`,p?`${esc(p.name)}<br><small class="muted">${p.down/1024} / ${p.up/1024} Mbit/s</small>`:'—',`<div class="row-act"><button class="btn sm danger" data-act="kick" data-id="${s.id}">Déconnecter</button></div>`]});
+  $('#list').innerHTML=tbl(['Utilisateur','IP / MAC','Routeur','Durée','Trafic','Forfait',''],rows,'Aucune session ne correspond.')};
+ return head('Sessions actives','Comptabilité RADIUS en temps réel (Acct-Interim toutes les '+S.settings.interim+' s). La déconnexion envoie un CoA Disconnect-Request au routeur.',`<button class="btn danger" data-act="kickall">Déconnecter tout un routeur</button>`)+
+ `<section class="panel"><div class="filters"><input class="inp" type="search" id="sq" placeholder="Rechercher un utilisateur, une IP, une MAC" value="${esc(F.sq||'')}">${sel('sn',[['','Tous les routeurs'],...onlineNas().map(n=>[n.name,n.name])],F.sn||'')}</div><div id="list"></div></section>`};
+
+/* ---------- Utilisateurs ---------- */
+const stUser=s=>pill(s,s==='actif'?'ok':s==='suspendu'?'warn':'mute');
+VIEWS.utilisateurs=()=>{curList=()=>{const q=(F.uq||'').toLowerCase(),st=F.us||'',pl=F.up||'';
+  const list=S.users.filter(u=>(!st||u.status===st)&&(!pl||u.plan==pl)&&(u.username+u.phone+u.mac).toLowerCase().includes(q));
+  const rows=list.map(u=>{const p=plan(u.plan),pct=p.quota?Math.min(100,u.used/p.quota*100):0;const on=S.sessions.some(s=>s.user===u.username);
+   return[`<button type="button" class="lnk mono" data-act="uopen" data-id="${u.id}">${esc(u.username)}</button>${on?' '+pill('en ligne','info'):''}<br><small class="muted">${esc(u.phone||'—')}${u.mac?' · MAC liée':''}</small>`,esc(p.name),stUser(u.status),p.quota?`<span class="meter"><i class="${pct>90?'hi':''}" style="width:${pct}%"></i></span><span class="num">${vol(u.used)} / ${vol(p.quota)}</span>`:`<span class="num">${vol(u.used)}</span> <small class="muted">illimité</small>`,`<span class="num">${dt(u.expires)}</span>`,esc(u.source),
+   `<div class="row-act"><button class="btn sm" data-act="uedit" data-id="${u.id}">Modifier</button><button class="btn sm" data-act="utoggle" data-id="${u.id}">${u.status==='suspendu'?'Réactiver':'Suspendre'}</button><button class="btn sm danger" data-act="udel" data-id="${u.id}" aria-label="Supprimer">Supprimer</button></div>`]});
+  $('#list').innerHTML=`<p class="muted num">${list.length} compte(s)</p>`+tbl(['Utilisateur','Forfait','Statut','Consommation','Expire le','Origine',''],rows)};
+ return head('Utilisateurs','Comptes stockés dans radcheck / radusergroup. Un compte créé ici peut se connecter immédiatement sur tous les routeurs.',`<button class="btn" data-act="export" data-id="users">Exporter (CSV)</button><button class="btn" data-act="ubulk">Création en masse</button><button class="btn pri" data-act="uadd">Nouvel utilisateur</button>`)+
+ `<section class="panel"><div class="filters"><input class="inp" type="search" id="uq" placeholder="Nom d'utilisateur, téléphone ou MAC" value="${esc(F.uq||'')}">${sel('us',[['','Tous les statuts'],['actif','Actifs'],['suspendu','Suspendus'],['expiré','Expirés']],F.us||'')}${sel('up',[['','Tous les forfaits'],...S.plans.map(p=>[p.id,p.name])],F.up||'')}</div><div id="list"></div></section>`};
+function userForm(u={}){return`<div class="form">
+ <label>Nom d'utilisateur<input class="inp" name="username" required value="${esc(u.username||'')}" ${u.id?'readonly':''} pattern="[a-zA-Z0-9._-]{3,32}"></label>
+ <label>Mot de passe<input class="inp mono" name="password" required value="${esc(u.password||String(Math.floor(100000+Math.random()*900000)))}"></label>
+ <label>Forfait${sel('plan',planOpts(),u.plan||S.plans[1].id)}</label>
+ <label>Téléphone<input class="inp" name="phone" placeholder="+243 81 000 0000" value="${esc(u.phone||'')}"></label>
+ <label class="full">Lier à une adresse MAC (facultatif)<input class="inp mono" name="mac" placeholder="AA:BB:CC:DD:EE:FF" value="${esc(u.mac||'')}" pattern="([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"></label>
+ ${u.id?`<label>Prolonger de (jours)<input class="inp" type="number" name="extend" min="0" value="0"></label><label class="chk"><input type="checkbox" name="reset"> Remettre la consommation à zéro</label>`:''}</div>`}
+
+/* ---------- Forfaits ---------- */
+const radAttrs=p=>`<span class="c"># radgroupcheck — groupe « ${esc(p.name)} »</span>
+<span class="k">Simultaneous-Use</span>       := ${p.shared}
+<span class="k">Max-All-Session</span>        := ${p.duration*60}
+<span class="c"># radgroupreply</span>
+<span class="k">Session-Timeout</span>        := ${p.duration*60}
+<span class="k">Idle-Timeout</span>           := ${S.settings.idle}
+<span class="k">Acct-Interim-Interval</span>  := ${S.settings.interim}
+<span class="k">WISPr-Bandwidth-Max-Down</span> := ${p.down*1000}
+<span class="k">WISPr-Bandwidth-Max-Up</span>   := ${p.up*1000}
+${p.quota?`<span class="k">ChilliSpot-Max-Total-Octets</span> := ${p.quota*1048576}`:'<span class="c"># pas de quota de volume</span>'}`;
+VIEWS.forfaits=()=>head('Forfaits','Chaque forfait devient un groupe RADIUS. Modifier un forfait s\'applique aux prochaines connexions de tous ses utilisateurs.',`<button class="btn pri" data-act="padd">Nouveau forfait</button>`)+
+ `<div class="grid3">${S.plans.map(p=>{const n=S.users.filter(u=>u.plan===p.id&&u.status==='actif').length;return`<section class="panel"><div class="panel-h"><h2>${esc(p.name)}</h2><b class="num" style="font-family:var(--f-display);font-size:1.15rem">${fc(p.price)}</b></div>
+ <div class="list">${[['Durée de connexion',dur(p.duration)],['Validité',p.validity+' jour(s)'],['Volume',vol(p.quota)],['Débit ↓ / ↑',`${p.down/1024} / ${p.up/1024} Mbit/s`],['Appareils simultanés',p.shared],['Comptes actifs',n]].map(([k,v])=>`<div class="li"><span class="muted">${k}</span><b class="num">${v}</b></div>`).join('')}</div>
+ <div class="actions"><button class="btn sm" data-act="pedit" data-id="${p.id}">Modifier</button><button class="btn sm" data-act="pattr" data-id="${p.id}">Attributs RADIUS</button><button class="btn sm danger" data-act="pdel" data-id="${p.id}">Supprimer</button></div></section>`}).join('')}</div>`;
+function planForm(p={}){return`<div class="form">
+ <label class="full">Nom<input class="inp" name="name" required value="${esc(p.name||'')}"></label>
+ <label>Prix (FC)<input class="inp" type="number" name="price" min="0" step="100" required value="${p.price??1000}"></label>
+ <label>Durée de connexion (min)<input class="inp" type="number" name="duration" min="1" required value="${p.duration??60}"></label>
+ <label>Validité (jours)<input class="inp" type="number" name="validity" min="1" required value="${p.validity??1}"></label>
+ <label>Volume (Mo, 0 = illimité)<input class="inp" type="number" name="quota" min="0" required value="${p.quota??1024}"></label>
+ <label>Débit descendant (kbit/s)<input class="inp" type="number" name="down" min="64" required value="${p.down??4096}"></label>
+ <label>Débit montant (kbit/s)<input class="inp" type="number" name="up" min="64" required value="${p.up??2048}"></label>
+ <label>Appareils simultanés<input class="inp" type="number" name="shared" min="1" max="10" required value="${p.shared??1}"></label></div>`}
+
+/* ---------- Vouchers ---------- */
+const stV=s=>pill(s,s==='disponible'?'ok':s==='vendu'?'info':s==='utilisé'?'mute':'bad');
+VIEWS.vouchers=()=>{const batches=[...new Set(S.vouchers.map(v=>v.batch))];
+ curList=()=>{const b=F.vb||'',st=F.vs||'',q=(F.vq||'').toUpperCase();const list=S.vouchers.filter(v=>(!b||v.batch===b)&&(!st||v.status===st)&&v.code.includes(q));
+  if(F.sheet){const sh=list.filter(v=>v.status==='disponible').slice(0,40);$('#list').innerHTML=`<p class="muted">${sh.length} ticket(s) disponibles sur la planche${b?' du lot '+esc(b):''}. Format 4 × 10 par page A4.</p><div class="sheet">${sh.map(v=>{const p=plan(v.plan);return`<div class="ticket"><div class="tk-h"><span>${esc(S.settings.portalTitle)}</span><span>${esc(v.batch)}</span></div><code>${v.code.slice(0,4)}-${v.code.slice(4)}</code><b>${esc(p.name)} · ${fc(p.price)}</b><small>${dur(p.duration)} · ${vol(p.quota)} · valable ${p.validity} j</small></div>`}).join('')||'<p class="muted">Aucun ticket disponible.</p>'}</div>`;return}
+  $('#list').innerHTML=`<p class="muted num">${list.length} ticket(s)</p>`+tbl(['Code','Forfait','Lot','Revendeur','Statut','Créé le',''],list.slice(0,150).map(v=>[`<b class="mono">${v.code}</b>`,esc(plan(v.plan).name),`<span class="mono">${esc(v.batch)}</span>`,esc(S.resellers.find(x=>x.id===v.reseller)?.name||'Stock central'),stV(v.status),d0(v.created),v.status==='disponible'?`<div class="row-act"><button class="btn sm danger" data-act="vcancel" data-id="${v.id}">Annuler</button></div>`:'']))};
+ const stats=batches.map(b=>{const l=S.vouchers.filter(v=>v.batch===b);const u=l.filter(v=>v.status==='utilisé').length;return{b,n:l.length,u,p:plan(l[0].plan)}});
+ return head('Tickets / Vouchers','Générez des lots de codes à imprimer et à confier aux revendeurs. Un code devient un compte RADIUS à sa première utilisation.',`<button class="btn" data-act="export" data-id="vouchers">Exporter (CSV)</button><button class="btn" data-act="vsheet">${F.sheet?'Afficher la liste':'Aperçu de la planche'}</button><button class="btn pri" data-act="vgen">Générer un lot</button>`)+
+ `<div class="tw"><table><thead><tr><th>Lot</th><th>Forfait</th><th>Utilisés</th><th>Recette réalisée</th><th></th></tr></thead><tbody>${stats.map(s=>`<tr><td class="mono">${s.b}</td><td>${esc(s.p.name)}</td><td><span class="meter"><i style="width:${s.u/s.n*100}%"></i></span><span class="num">${s.u} / ${s.n}</span></td><td class="num">${fc(s.u*s.p.price)}</td><td><div class="row-act"><button class="btn sm" data-act="export" data-id="batch:${s.b}">CSV</button><button class="btn sm danger" data-act="vbatchcancel" data-id="${s.b}">Annuler le lot</button></div></td></tr>`).join('')}</tbody></table></div>
+ <section class="panel"><div class="filters"><input class="inp" type="search" id="vq" placeholder="Rechercher un code" value="${esc(F.vq||'')}">${sel('vb',[['','Tous les lots'],...batches.map(b=>[b,b])],F.vb||'')}${sel('vs',[['','Tous les statuts'],['disponible','Disponibles'],['vendu','Vendus, pas encore activés'],['utilisé','Utilisés'],['annulé','Annulés']],F.vs||'')}</div><div id="list"></div></section>`};
+
+/* ---------- Paiements Mobile Money ---------- */
+const stPay=s=>pill(s,s==='réussi'?'ok':s==='en attente'?'warn':'bad');
+VIEWS.paiements=()=>{curList=()=>{const o=F.po||'',st=F.ps||'';const list=S.payments.filter(p=>(!o||p.op===o)&&(!st||p.status===st)&&(p.ref+p.tx+p.phone).toLowerCase().includes((F.pq||'').toLowerCase()));
+  $('#list').innerHTML=tbl(['Référence','Téléphone','Opérateur','Forfait','Montant','Statut','Date',''],list.map(p=>[`<span class="mono">${p.ref}</span><br><small class="muted mono">${p.tx}</small>`,`<span class="mono">${esc(p.phone)}</span>`,esc(p.op),esc(plan(p.plan).name),`<b class="num">${fc(p.amount)}</b>`,stPay(p.status),dt(p.date),p.status==='en attente'?`<div class="row-act"><button class="btn sm" data-act="payok" data-id="${p.id}">Valider</button><button class="btn sm danger" data-act="payko" data-id="${p.id}">Rejeter</button></div>`:'']))};
+ const ok=S.payments.filter(p=>p.status==='réussi');
+ return head('Mobile Money','Paiements reçus via M-Pesa, Airtel Money et Orange Money. Un paiement réussi crée automatiquement le compte et l\'envoie par SMS.',`<button class="btn" data-act="export" data-id="payments">Exporter (CSV)</button><button class="btn pri" data-act="paysim">Enregistrer un paiement</button>`)+
+ `<div class="kpis">${Object.keys(OPS).map(o=>{const l=ok.filter(p=>p.op===o);return`<div class="kpi"><span>${o}</span><b>${l.reduce((a,p)=>a+p.amount,0).toLocaleString('fr-FR')}</b><small>FC · ${l.length} transaction(s)</small></div>`}).join('')}<div class="kpi"><span>Taux d'échec</span><b>${Math.round(S.payments.filter(p=>p.status==='échoué').length/S.payments.length*100)} %</b><small>sur ${S.payments.length} tentatives</small></div></div>
+ <section class="panel"><div class="filters"><input class="inp" type="search" id="pq" placeholder="Référence, transaction ou téléphone" value="${esc(F.pq||'')}">${sel('po',[['','Tous les opérateurs'],...Object.keys(OPS).map(o=>[o,o])],F.po||'')}${sel('ps',[['','Tous les statuts'],['réussi','Réussis'],['en attente','En attente'],['échoué','Échoués']],F.ps||'')}</div><div id="list"></div></section>`};
+
+/* ---------- Distribution : opérateur → distributeurs → revendeurs ---------- */
+const distOf=x=>S.distributors.find(d=>d.id===x.dist);
+VIEWS.revendeurs=()=>{const ex=S.plans[1],r0=S.resellers[0],dd=distOf(r0)||{share:0},sum=(a,k)=>a.reduce((t,x)=>t+x[k],0);
+ const split=[['Revendeur',r0.commission],['Distributeur',dd.share],['Opérateur',100-r0.commission-dd.share]];
+ return head('Distribution','Réseau de vente à trois niveaux : l\'opérateur crédite les distributeurs, qui rechargent leurs revendeurs. Chaque vente partage la recette selon les commissions.',`<button class="btn" data-act="dadd">Nouveau distributeur</button><button class="btn pri" data-act="radd">Nouveau revendeur</button>`)+
+ `<div class="kpis"><div class="kpi"><span>Portefeuille opérateur</span><b>${S.op.wallet.toLocaleString('fr-FR')}</b><small>FC de crédit disponible</small></div><div class="kpi"><span>Distributeurs</span><b>${sum(S.distributors,'wallet').toLocaleString('fr-FR')}</b><small>FC · ${S.distributors.length} portefeuilles</small></div><div class="kpi"><span>Revendeurs</span><b>${sum(S.resellers,'balance').toLocaleString('fr-FR')}</b><small>FC · ${S.resellers.length} points de vente</small></div><div class="kpi"><span>Tickets vendus</span><b>${sum(S.resellers,'sold').toLocaleString('fr-FR')}</b><small>par le réseau</small></div></div>
+ <div class="grid2"><section class="panel"><h2>Distributeurs</h2>${tbl(['Distributeur','Zone','Portefeuille','Part','Revendeurs',''],S.distributors.map(d=>[`<b>${esc(d.name)}</b><br><small class="muted mono">${esc(d.phone)}</small>`,`<span style="white-space:normal">${esc(d.zone)}</span>`,`<b class="num">${fc(d.wallet)}</b>`,d.share+' %',`<span class="num">${S.resellers.filter(x=>x.dist===d.id).length}</span>`,`<div class="row-act"><button class="btn sm" data-act="dcredit" data-id="${d.id}">Créditer</button></div>`]))}</section>
+ <section class="panel"><h2>Partage d'une vente</h2><p class="muted">Exemple : ticket « ${esc(ex.name)} » à ${fc(ex.price)} vendu par ${esc(r0.name)}.</p>${split.map(([k,p])=>HB(k,p,100,`${fc(ex.price*p/100)} · ${p} %`)).join('')}<p class="note">La commission est retenue quand un lot est attribué au revendeur. Le distributeur touche sa part au moment où il recharge ses revendeurs.</p></section></div>
+ ${topupPanel()}<section class="panel"><h2>Revendeurs</h2>${tbl(['Revendeur','Distributeur','Zone','Téléphone','Solde','Commission','Vendus','Stock',''],S.resellers.map(x=>{const st=S.vouchers.filter(v=>v.reseller===x.id&&v.status==='disponible').length;return[`<b>${esc(x.name)}</b>`,esc(distOf(x)?.name||'Opérateur'),esc(x.zone),`<span class="mono">${esc(x.phone)}</span>`,`<b class="num">${fc(x.balance)}</b> ${x.balance<15000?pill('bas','warn'):''}`,x.commission+' %',`<span class="num">${x.sold}</span>`,`<span class="num">${st}</span>`,`<div class="row-act"><button class="btn sm" data-act="rtop" data-id="${x.id}">Recharger</button><button class="btn sm" data-act="rgive" data-id="${x.id}">Attribuer un lot</button></div>`]}))}</section>`};
+
+/* ---------- Routeurs NAS ---------- */
+VIEWS.routeurs=()=>head('Routeurs (NAS)','Clients RADIUS autorisés à interroger le serveur (table nas). Le secret partagé doit être identique sur le routeur.',`<button class="btn pri" data-act="nadd">Ajouter un routeur</button>`)+
+ `<section class="panel">${tbl(['Nom','Adresse IP','Type','Secret partagé','État','Sessions',''],S.nas.map(n=>[`<b>${esc(n.name)}</b><br><small class="muted">${esc(n.zone||'')}</small>`,`<span class="mono">${esc(n.ip)}</span>`,esc(n.type),`<span class="mono">${F['sec'+n.id]?esc(n.secret):'••••••••••'}</span> <button class="btn sm" data-act="nsec" data-id="${n.id}">${F['sec'+n.id]?'Masquer':'Afficher'}</button>`,n.online?pill('En ligne','ok'):pill('Hors ligne','bad')+`<br><small class="muted">vu ${dt(n.lastSeen)}</small>`,`<span class="num">${S.sessions.filter(s=>s.nas===n.name).length}</span>`,`<div class="row-act"><button class="btn sm" data-act="ntest" data-id="${n.id}">Tester</button><button class="btn sm danger" data-act="ndel" data-id="${n.id}">Retirer</button></div>`]))}</section>
+ <section class="panel"><h2>Configuration côté routeur</h2><p class="muted">À reporter dans l'interface du routeur pour qu'il utilise ce serveur.</p><pre class="attr"><span class="k">Serveur RADIUS</span>        IP publique ou VPN du serveur
+<span class="k">Port authentification</span> ${S.settings.auth}
+<span class="k">Port comptabilité</span>     ${S.settings.acct}
+<span class="k">Port CoA / Disconnect</span> ${S.settings.coa}
+<span class="k">Interim update</span>        ${S.settings.interim} s
+<span class="k">Page de connexion</span>     URL du portail captif (onglet « Portail captif »)
+<span class="k">Walled garden</span>         domaine du portail + passerelles Mobile Money</pre></section>`;
+
+/* ---------- Portail captif ---------- */
+let PT='code',PMSG='',PRES='',SMSS=null;
+const PTABS={voucher:['code','Ticket'],momo:['momo','Acheter'],free:['free','Gratuit'],sms:['sms','SMS']};
+const loginOn=k=>S.login.find(l=>l.k===k)?.on;
+function phRender(){const e=$('#phb');if(e)e.innerHTML=PRES}
+VIEWS.portail=()=>{const demo=S.vouchers.filter(v=>v.status==='disponible').slice(0,3);
+ const tabs=S.login.filter(l=>l.on&&PTABS[l.k]).map(l=>PTABS[l.k]);
+ if(tabs.length&&!tabs.some(t=>t[0]===PT))PT=tabs[0][0];
+ const smsUser=S.users.find(u=>u.status==='actif'&&u.phone);
+ let body='';
+ if(!tabs.length)body='<p class="msg e">Aucune méthode de connexion activée.</p>';
+ else if(PT==='code')body=`<form id="pcode" style="display:flex;flex-direction:column;gap:12px"><label>Code du ticket<input id="pc" name="c" class="mono" placeholder="XXXX-XXXX" autocomplete="off" required style="letter-spacing:.1em;text-transform:uppercase"></label><button class="go">Se connecter</button></form><p class="hint">Codes disponibles pour l'essai : ${demo.map(v=>`<button type="button" data-act="pfill" data-id="${v.code}">${v.code}</button>`).join('')}</p>`;
+ else if(PT==='momo')body=`<form id="pmomo" style="display:flex;flex-direction:column;gap:12px"><label>Forfait<select name="plan">${S.plans.filter(p=>!p.free).map(p=>`<option value="${p.id}">${esc(p.name)} — ${fc(p.price)}</option>`).join('')}</select></label><div><span style="font-size:.78rem;font-weight:600;color:#3c5058">Opérateur</span><div class="ops">${Object.keys(OPS).map((o,i)=>`<label><input type="radio" name="op" value="${o}" ${i?'':'checked'}>${o.split(' ')[0]}</label>`).join('')}</div></div><label>Numéro Mobile Money<input name="phone" placeholder="+243 81 234 5678" required inputmode="tel"></label><button class="go">Payer</button><p class="hint">Vous recevrez une demande de confirmation sur votre téléphone. Saisissez votre code PIN pour valider.</p></form>`;
+ else if(PT==='free')body=`<div style="display:flex;flex-direction:column;gap:10px"><p style="font-size:.9rem">Profitez de <b>${S.free.min} min</b> et <b>${S.free.mb} Mo</b> gratuits par jour, offerts par nos partenaires.</p><button type="button" class="go" data-act="pfree">Regarder une publicité de ${S.free.adSec} s</button><p class="hint">Débit limité à 1 Mbit/s. Un accès par appareil et par jour.</p></div>`;
+ else if(PT==='sms')body=SMSS?`<form id="psms2" style="display:flex;flex-direction:column;gap:12px"><label>Code reçu par SMS<input name="otp" inputmode="numeric" maxlength="6" required class="mono" style="letter-spacing:.3em"></label><button class="go">Valider</button></form><p class="hint">Démo : le code envoyé est <b class="mono">${SMSS.otp}</b>. <button type="button" data-act="psmsback">Changer de numéro</button></p>`
+  :`<form id="psms1" style="display:flex;flex-direction:column;gap:12px"><label>Votre numéro<input name="phone" required inputmode="tel" placeholder="+243 81 234 5678"></label><button class="go">Recevoir un code</button></form><p class="hint">Numéro d'un client actif pour l'essai : <button type="button" data-act="pfillp" data-id="${esc(smsUser?.phone||'')}">${esc(smsUser?.phone||'')}</button></p>`;
+ const social=loginOn('social')?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${['Google','Facebook'].map(x=>`<button type="button" class="go" style="background:#fff;color:#14232a;border:1px solid #c5d3d1" data-act="psocial" data-id="${x}">${x}</button>`).join('')}</div>`:'';
+ return head('Portail captif','Page que voient vos clients en se connectant au Wi-Fi. Cet aperçu fonctionne : essayez chaque méthode, puis regardez Utilisateurs, Sessions et Mobile Money.')+
+ `<div class="portal-wrap"><div class="phone"><div class="ph-top"><b>${esc(S.settings.portalTitle)}</b><span>${esc(S.settings.portalMsg)}</span></div><div class="ph-body" id="phb">
+ ${PRES?PRES:`${tabs.length?`<div class="tabs" style="grid-template-columns:repeat(${tabs.length},1fr)">${tabs.map(([k,l])=>`<button type="button" data-act="ptab" data-id="${k}" class="${PT===k?'on':''}">${l}</button>`).join('')}</div>`:''}${PMSG}${body}${social}`}
+ </div></div>
+ <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+ <section class="panel"><h2>Méthodes de connexion</h2><p class="muted">Activez ce que vos clients peuvent utiliser. Les changements s'appliquent immédiatement à l'aperçu.</p><div>${S.login.map(l=>`<div class="opt"><div><b>${esc(l.n)}</b><p class="muted" style="font-size:.84rem">${esc(l.d)}</p></div><input type="checkbox" class="sw" id="lg_${l.k}" data-act="login" data-id="${l.k}" ${l.on?'checked':''} aria-label="${esc(l.n)}"></div>`).join('')}</div></section>
+ <section class="panel"><h2>Ce qui se passe à la connexion</h2><ol class="steps">
+  <li><div><b>Redirection</b><p class="muted">Le routeur intercepte la première page web et affiche ce portail. Le portail et les passerelles de paiement restent accessibles sans connexion (walled garden).</p></div></li>
+  <li><div><b>Access-Request</b><p class="muted">Le routeur envoie le code, l'identifiant ou l'adresse MAC au serveur RADIUS sur le port ${S.settings.auth}.</p></div></li>
+  <li><div><b>Contrôles</b><p class="muted">Statut du compte, expiration, volume restant, plage horaire et nombre d'appareils.</p></div></li>
+  <li><div><b>Access-Accept</b><p class="muted">Le serveur renvoie la durée, le débit et le quota. Le routeur ouvre l'accès Internet.</p></div></li>
+  <li><div><b>Comptabilité</b><p class="muted">Start, puis Interim toutes les ${S.settings.interim} s, puis Stop. Les compteurs alimentent Sessions, Analytique et Conformité.</p></div></li>
+ </ol></section>
+ <section class="panel"><h2>Personnaliser</h2><div class="form"><label class="full">Titre affiché<input class="inp" id="pt_title" value="${esc(S.settings.portalTitle)}"></label><label class="full">Message d'accueil<input class="inp" id="pt_msg" value="${esc(S.settings.portalMsg)}"></label><label>Langue du portail${sel('pt_lang',[['fr','Français'],['ln','Lingala'],['sw','Swahili'],['en','Anglais']],'fr')}</label></div><div class="actions"><button class="btn" data-act="psave">Appliquer au portail</button>${PRES?'<button class="btn" data-act="preset">Réinitialiser l\'aperçu</button>':''}</div></section>
+ </div></div>`};
+function sessFor(un,m){const n=pick(onlineNas());S.sessions.unshift({id:id(),user:un,ip:n.ip.replace(/\.1$/,'.')+(30+Math.floor(Math.random()*200)),mac:m||mac(),nas:n.name,start:Date.now(),inMB:.1,outMB:.05});return n}
+function freeConnect(){const p=S.plans.find(x=>x.free),m=mac(),un='gratuit-'+m.slice(-5).replace(':','').toLowerCase();
+ S.users.unshift({id:id(),username:un,password:'',plan:p.id,phone:'',mac:m,created:Date.now(),expires:Date.now()+DAY,status:'actif',used:0,source:'Gratuit (pub)'});
+ const n=sessFor(un,m);log('radius',`Accès gratuit ${un} sur ${n.name} après publicité`);
+ PRES=`<p class="msg s">Vous êtes connecté gratuitement.</p><div style="font-size:.9rem;display:flex;flex-direction:column;gap:4px"><span>Temps : ${S.free.min} min</span><span>Volume : ${S.free.mb} Mo</span><span>Débit : 1 Mbit/s</span></div><p class="hint">Besoin de plus ? Forfaits à partir de ${fc(Math.min(...S.plans.filter(x=>!x.free).map(x=>x.price)))}.</p><button type="button" class="go" data-act="preset">Nouvel essai</button>`}
+
+/* ---------- Analytique visiteurs ---------- */
+function colChart(vals){const W=640,H=200,L=40,B=24,T=8,R=6,mx=Math.ceil(Math.max(...vals)/20)*20,bw=(W-L-R)/vals.length,y=v=>H-B-(v/mx)*(H-B-T);let g='';
+ [0,mx/2,mx].forEach(v=>g+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`);
+ vals.forEach((v,i)=>{const x=L+i*bw+bw*.15;g+=`<rect class="b1" x="${x}" y="${y(v)}" width="${bw*.7}" height="${y(0)-y(v)}" rx="2"><title>${i} h : ${v} connexions</title></rect>`;if(i%3===0)g+=`<text x="${x+bw*.35}" y="${H-7}" text-anchor="middle">${i}h</text>`});
+ return`<div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Connexions moyennes par heure">${g}</svg></div>`}
+VIEWS.analytique=()=>{const tot=S.nas.reduce((a,n)=>a+n.visits,0),ret=Math.round(S.nas.reduce((a,n)=>a+n.visits*n.ret,0)/tot),mh=Math.max(...S.hours);
+ return head('Analytique visiteurs','Fréquentation des hotspots sur 30 jours, calculée à partir des sessions RADIUS et des adresses MAC.')+
+ `<div class="kpis"><div class="kpi"><span>Visiteurs uniques</span><b>${tot.toLocaleString('fr-FR')}</b><small>appareils distincts</small></div><div class="kpi"><span>Visiteurs fidèles</span><b>${ret} %</b><small>venus au moins 2 fois</small></div><div class="kpi"><span>Durée moyenne</span><b>47 min</b><small>par session</small></div><div class="kpi"><span>Heure de pointe</span><b>${S.hours.indexOf(mh)} h</b><small>${mh} connexions en moyenne</small></div></div>
+ <section class="panel"><h2>Connexions moyennes par heure</h2>${colChart(S.hours)}</section>
+ <div class="grid2"><section class="panel"><h2>Fréquentation par site</h2>${tbl(['Site','Routeur','Visiteurs','Fidèles','Nouveaux'],S.nas.map(n=>[esc(n.zone),esc(n.name),`<span class="num">${n.visits.toLocaleString('fr-FR')}</span>`,`<span class="num">${n.ret} %</span>`,`<span class="num">${100-n.ret} %</span>`]))}</section>
+ <section class="panel"><h2>Types d'appareils</h2>${S.devices.map(([k,v])=>HB(k,v,100,v+' %')).join('')}<p class="note">Le type d'appareil est déduit du fabricant de l'adresse MAC et de l'agent du navigateur sur le portail.</p></section></div>`};
+
+/* ---------- Politiques & QoS ---------- */
+VIEWS.politiques=()=>head('Politiques & QoS','Règles appliquées par le serveur RADIUS et les routeurs : plages horaires, quotas journaliers, débit dynamique, filtrage.',`<button class="btn pri" data-act="poladd">Nouvelle règle</button>`)+
+ `<section class="panel">${tbl(['Règle','S\'applique à','Effet','Active'],S.policies.map(p=>[`<b>${esc(p.name)}</b>`,esc(p.scope),`<span style="white-space:normal">${esc(p.rule)}</span>`,`<input type="checkbox" class="sw" id="pol_${p.id}" data-act="poltoggle" data-id="${p.id}" ${p.on?'checked':''} aria-label="Activer ${esc(p.name)}">`]))}</section>
+ <div class="grid2"><section class="panel"><h2>Filtrage des sites web</h2><p class="muted">Catégories bloquées par le DNS filtrant des routeurs. Les tentatives apparaissent dans Conformité.</p><div>${S.filters.map(([n,on],i)=>`<div class="opt"><b>${esc(n)}</b><input type="checkbox" class="sw" id="flt_${i}" data-act="filt" data-id="${i}" ${on?'checked':''} aria-label="Bloquer ${esc(n)}"></div>`).join('')}</div></section>
+ <section class="panel"><h2>Limites par défaut</h2><div class="list">${[['Appareils par compte','Défini par le forfait (Simultaneous-Use)'],['Inactivité avant déconnexion',S.settings.idle/60+' min'],['Mise à jour des compteurs','toutes les '+S.settings.interim+' s'],['Réseaux séparés','VLAN 10 clients · VLAN 20 personnel'],['Bande passante totale par site','fixée sur chaque routeur']].map(([k,v])=>`<div class="li"><span class="muted">${k}</span><b style="text-align:right">${v}</b></div>`).join('')}</div></section></div>`;
+
+/* ---------- Points d'accès ---------- */
+VIEWS['points-acces']=()=>{const up=S.aps.filter(a=>a.up),cl=up.reduce((t,a)=>t+a.clients,0),ut=Math.round(up.reduce((t,a)=>t+a.util,0)/(up.length||1));
+ return head('Points d\'accès','Bornes Wi-Fi de chaque site, remontées par les contrôleurs des constructeurs (UniFi, Omada…) et par SNMP.')+
+ `<div class="kpis"><div class="kpi"><span>Bornes en service</span><b>${up.length} / ${S.aps.length}</b><small>sur ${S.nas.length} sites</small></div><div class="kpi"><span>Clients Wi-Fi</span><b>${cl}</b><small>associés maintenant</small></div><div class="kpi"><span>Charge moyenne</span><b>${ut} %</b><small>du temps d'antenne</small></div><div class="kpi"><span>Réseaux suspects</span><b>${S.rogue.length}</b><small>détectés à proximité</small></div></div>
+ <section class="panel">${tbl(['Borne','Site','Modèle','Canaux 2,4 / 5 GHz','Clients','Charge','Firmware','État',''],S.aps.map(a=>[`<b>${esc(a.name)}</b><br><small class="muted mono">${a.mac}</small>`,esc(a.nas),esc(a.model),`<span class="mono">${a.ch}</span>`,`<span class="num">${a.clients}</span>`,a.up?`<span class="meter"><i class="${a.util>80?'hi':''}" style="width:${a.util}%"></i></span><span class="num">${a.util} %</span>`:'—',`<span class="mono">${a.fw}</span>`,a.up?pill('En service','ok'):pill('Injoignable','bad'),`<div class="row-act"><button class="btn sm" data-act="apreboot" data-id="${a.id}">Redémarrer</button></div>`]))}</section>
+ <section class="panel"><h2>Réseaux suspects à proximité</h2><p class="muted">Points d'accès inconnus repérés par vos bornes. Un réseau qui imite votre nom peut servir à voler des identifiants.</p>${tbl(['Nom du réseau','BSSID','Canal','Signal','Vu par','Risque',''],S.rogue.map(g=>[`<b>${esc(g.ssid)}</b>`,`<span class="mono">${g.bssid}</span>`,g.ch,`<span class="num">${g.rssi} dBm</span>`,esc(g.seen),pill(g.risk,'warn'),`<div class="row-act"><button class="btn sm" data-act="rogueok" data-id="${g.id}">Marquer comme connu</button></div>`]),'Aucun réseau suspect.')}</section>`};
+
+/* ---------- Publicité & campagnes ---------- */
+const SEGS=()=>[['exp','Forfait expirant dans 24 h',S.users.filter(u=>u.status==='actif'&&u.phone&&u.expires-Date.now()<DAY).length],['old','Comptes expirés',S.users.filter(u=>u.status==='expiré'&&u.phone).length],['momo','Clients Mobile Money',S.users.filter(u=>u.source==='Mobile Money'&&u.phone).length],['all','Tous les clients avec téléphone',S.users.filter(u=>u.phone).length]];
+VIEWS.marketing=()=>{const imp=S.ads.reduce((t,a)=>t+a.imp,0),clk=S.ads.reduce((t,a)=>t+a.clk,0);
+ return head('Publicité & campagnes','Monétisez le portail avec des annonces, interrogez vos clients et relancez-les par SMS.',`<button class="btn" data-act="camadd">Nouvelle campagne SMS</button><button class="btn pri" data-act="adadd">Nouvelle publicité</button>`)+
+ `<div class="kpis"><div class="kpi"><span>Affichages</span><b>${imp.toLocaleString('fr-FR')}</b><small>sur 30 jours</small></div><div class="kpi"><span>Clics</span><b>${clk.toLocaleString('fr-FR')}</b><small>taux ${(clk/imp*100).toFixed(1).replace('.',',')} %</small></div><div class="kpi"><span>Annonces actives</span><b>${S.ads.filter(a=>a.on).length}</b><small>sur ${S.ads.length}</small></div><div class="kpi"><span>Réponses aux enquêtes</span><b>${S.surveys.reduce((t,q)=>t+q.a.reduce((x,a)=>x+a[1],0),0)}</b><small>toutes questions</small></div></div>
+ <section class="panel"><h2>Publicités du portail</h2>${tbl(['Annonce','Annonceur','Format','Emplacement','Affichages','Taux de clic','Fin','Active'],S.ads.map(a=>[`<b>${esc(a.name)}</b>`,esc(a.sponsor),esc(a.type),esc(a.slot),`<span class="num">${a.imp.toLocaleString('fr-FR')}</span>`,`<span class="num">${(a.clk/Math.max(a.imp,1)*100).toFixed(1).replace('.',',')} %</span>`,a.until<Date.now()?pill('terminée','mute'):d0(a.until),`<input type="checkbox" class="sw" id="ad_${a.id}" data-act="adtoggle" data-id="${a.id}" ${a.on?'checked':''} aria-label="Activer ${esc(a.name)}">`]))}</section>
+ <div class="grid2"><section class="panel"><h2>Enquêtes après connexion</h2>${S.surveys.map(q=>{const t=q.a.reduce((x,a)=>x+a[1],0);return`<div><h3>${esc(q.q)}</h3>${q.a.map(([k,v])=>HB(k,v,t,Math.round(v/t*100)+' %')).join('')}</div>`}).join('')}</section>
+ <section class="panel"><h2>Campagnes SMS</h2>${tbl(['Campagne','Cible','Envoyés','Achats','Date'],S.campaigns.map(c=>[`<b>${esc(c.name)}</b><br><small class="muted">${esc(c.st)} · ${esc(c.ch)}</small>`,`<span style="white-space:normal">${esc(c.seg)}</span>`,`<span class="num">${c.sent}</span>`,`<span class="num">${c.conv}</span>`,d0(c.date)]))}</section></div>`};
+
+/* ---------- Conformité & journaux ---------- */
+VIEWS.conformite=()=>{curList=()=>{const q=(F.cq||'').toLowerCase();const l=S.cdr.filter(c=>(c.user+c.mac+c.ip).toLowerCase().includes(q));
+  $('#list').innerHTML=`<p class="muted num">${l.length} enregistrement(s)</p>`+tbl(['Début','Fin','Utilisateur','MAC','IP','Routeur','Reçu / Envoyé'],l.map(c=>[dt(c.start),dt(c.stop),`<span class="mono">${esc(c.user)}</span>`,`<span class="mono">${c.mac}</span>`,`<span class="mono">${c.ip}</span>`,esc(c.nas),`<span class="num">${vol(c.inMB)} / ${vol(c.outMB)}</span>`]))};
+ return head('Conformité & journaux','Historique des connexions (CDR) et journal des sites visités, pour répondre à une réquisition ou enquêter sur un abus.',`<button class="btn" data-act="cexport">Exporter pour réquisition</button>`)+
+ `<section class="panel"><div class="panel-h"><h2>Conservation des données</h2><div class="filters">${sel('ret',[[6,'6 mois'],[12,'12 mois'],[24,'24 mois']],S.retention)}<button class="btn" data-act="retsave">Appliquer</button></div></div><p class="note">Les sessions (radacct) et les journaux web sont purgés automatiquement au-delà de cette durée. Vérifiez la durée exigée par la réglementation applicable à votre activité.</p></section>
+ <section class="panel"><h2>Historique des connexions (CDR)</h2><div class="filters"><input class="inp" type="search" id="cq" placeholder="Utilisateur, MAC ou IP" value="${esc(F.cq||'')}"></div><div id="list"></div></section>
+ <section class="panel"><h2>Journal des sites visités</h2>${tbl(['Heure','Utilisateur','Domaine','Catégorie','Résultat'],S.weblog.map(w=>[dt(w.t),`<span class="mono">${esc(w.user)}</span>`,`<span class="mono">${esc(w.dom)}</span>`,esc(w.cat),w.act==='bloqué'?pill('bloqué','bad'):pill('autorisé','ok')]))}</section>`};
+
+/* ---------- Correspondance Indio ---------- */
+const INDIO=[
+ ['Plateforme cloud de gestion multi-sites (Indio Connect)','Console centrale, tous les routeurs et sites','tableau','ok'],
+ ['AAA haute performance (authentification, autorisation, comptabilité)','FreeRADIUS + PostgreSQL','routeurs','ok'],
+ ['Micro-facturation au temps et au volume','Forfaits : durée, volume, débit, appareils','forfaits','ok'],
+ ['Partage des revenus entre niveaux','Distribution : opérateur, distributeurs, revendeurs','revendeurs','ok'],
+ ['Application Distributeur : revendeurs et portefeuille virtuel','Distribution : portefeuilles et recharges','revendeurs','ok'],
+ ['Application Retailer : vente de packs data','Point de vente revendeur : vente, stock, demandes de recharge','point-de-vente','ok'],
+ ['Application utilisateur : trouver un point de vente, acheter un pack','Achat sur le portail captif','portail','part'],
+ ['Gestion de vouchers en nombre illimité','Tickets / Vouchers','vouchers','ok'],
+ ['Plus de 12 passerelles de paiement','M-Pesa, Airtel Money, Orange Money (carte via agrégateur à brancher)','paiements','part'],
+ ['Méthodes de connexion multiples','Ticket, Mobile Money, SMS, gratuit, MAC, identifiant','portail','ok'],
+ ['Connexion par réseaux sociaux','Google / Facebook (à activer avec vos clés développeur)','portail','part'],
+ ['Modèle freemium (accès gratuit limité + premium)','Accès gratuit sponsorisé','portail','ok'],
+ ['Portail captif personnalisable','Portail captif : textes et langue','portail','ok'],
+ ['Publicités image et vidéo sur le portail','Publicité & campagnes','marketing','ok'],
+ ['Enquêtes clients','Enquêtes après connexion','marketing','ok'],
+ ['Campagnes marketing par notification','Campagnes SMS ciblées','marketing','ok'],
+ ['Analyse des visiteurs (fidélité, fréquentation)','Analytique visiteurs','analytique','ok'],
+ ['Limitation de débit, quotas journaliers, règles horaires','Politiques & QoS','politiques','ok'],
+ ['Débit dynamique selon la charge','Politiques & QoS (CoA)','politiques','ok'],
+ ['Filtrage d\'URL, journaux web, CDR','Conformité & journaux','conformite','ok'],
+ ['Supervision des bornes, détection des AP pirates','Points d\'accès','points-acces','ok'],
+ ['Rôles d\'administration','Rôles et permissions appliqués à la console (« Voir en tant que »)','parametres','ok'],
+ ['Interface multilingue','Portail : français, lingala, swahili, anglais (traductions à fournir)','portail','part'],
+ ['Contrôleur AP : firmware, canaux, mesh','Reste sur le contrôleur du constructeur (UniFi, Omada)','points-acces','out'],
+ ['Multi-WAN, bascule de lien, VPN, DHCP','Reste sur le routeur ou la passerelle','routeurs','out'],
+ ['Cartes de couverture par étage (heat maps)','Non prévu','points-acces','out'],
+ ['Application mobile native','À développer (Android en priorité)','portail','todo']];
+const IST={ok:['Couvert','ok'],part:['Partiel','warn'],todo:['À prévoir','info'],out:['Hors périmètre','mute']};
+VIEWS.indio=()=>{curList=VIEWS.indio.list;const c=k=>INDIO.filter(x=>x[3]===k).length;
+ return head('Correspondance Indio','Fonctions annoncées par Indio Networks (Indio Connect, contrôleurs UniBox) et leur équivalent dans cette console.')+
+ `<div class="kpis">${Object.entries(IST).map(([k,[l]])=>`<div class="kpi"><span>${l}</span><b>${c(k)}</b><small>sur ${INDIO.length} fonctions</small></div>`).join('')}</div>
+ <section class="panel"><div class="filters">${sel('iq',[['','Tous les états'],...Object.entries(IST).map(([k,[l]])=>[k,l])],F.iq||'')}</div><div id="list"></div>
+ <p class="note">Correspondance établie à partir de la documentation publique d'Indio Networks (<a href="https://indionetworks.com/products/indio-connect.html" target="_blank" rel="noopener">Indio Connect</a>, <a href="https://indionetworks.com/docs/products/UniBox-Whitepaper.pdf" target="_blank" rel="noopener">livre blanc UniBox</a>). HotSpot Pro n'est pas affilié à Indio Networks. Les fonctions « hors périmètre » relèvent du matériel réseau, pas du serveur RADIUS.</p></section>`};
+VIEWS.indio.list=()=>{const f=F.iq||'';$('#list').innerHTML=tbl(['Fonction Indio','Équivalent HotSpot Pro','Module','État'],INDIO.filter(x=>!f||x[3]===f).map(([a,b,m,k])=>[`<span style="white-space:normal">${esc(a)}</span>`,`<span style="white-space:normal">${esc(b)}</span>`,`<a href="#${m}">${esc(NAV.flatMap(g=>g[1]).find(n=>n[0]===m)?.[1]||m)}</a>`,pill(IST[k][0],IST[k][1])]))};
+
+/* ---------- Rapports ---------- */
+VIEWS.rapports=()=>{const ok=S.payments.filter(p=>p.status==='réussi');
+ const byPlan=S.plans.map(p=>({n:p.name,v:S.vouchers.filter(v=>v.plan===p.id&&v.status==='utilisé').length*p.price+ok.filter(x=>x.plan===p.id).reduce((a,x)=>a+x.amount,0)})).sort((a,b)=>b.v-a.v);
+ const mx=Math.max(...byPlan.map(x=>x.v),1);
+ const tv=S.daily.reduce((a,d)=>a+d.v,0),tm=S.daily.reduce((a,d)=>a+d.m,0);
+ const top=[...S.users].sort((a,b)=>b.used-a.used).slice(0,8),mu=top[0].used;
+ const nasL=S.nas.map(n=>({n:n.name,c:S.sessions.filter(s=>s.nas===n.name).length,t:S.sessions.filter(s=>s.nas===n.name).reduce((a,s)=>a+s.inMB+s.outMB,0)}));const mt=Math.max(...nasL.map(x=>x.t),1);
+ const hb=(l,v,m,txt)=>`<div class="hbar"><span>${esc(l)}</span><div class="track"><i style="width:${v/m*100}%"></i></div><b class="num">${txt}</b></div>`;
+ return head('Rapports','Synthèse des 14 derniers jours.',`<button class="btn" data-act="export" data-id="daily">Exporter les recettes (CSV)</button>`)+
+ `<div class="kpis"><div class="kpi"><span>Recettes totales</span><b>${(tv+tm).toLocaleString('fr-FR')}</b><small>FC sur 14 jours</small></div><div class="kpi"><span>Part tickets</span><b>${Math.round(tv/(tv+tm)*100)} %</b><small>${fc(tv)}</small></div><div class="kpi"><span>Part Mobile Money</span><b>${Math.round(tm/(tv+tm)*100)} %</b><small>${fc(tm)}</small></div><div class="kpi"><span>Panier moyen</span><b>${Math.round(ok.reduce((a,p)=>a+p.amount,0)/ok.length).toLocaleString('fr-FR')}</b><small>FC par paiement</small></div></div>
+ <div class="grid2"><section class="panel"><h2>Recettes par forfait</h2>${byPlan.map(x=>hb(x.n,x.v,mx,fc(x.v))).join('')}</section>
+ <section class="panel"><h2>Plus gros consommateurs</h2>${top.map(u=>hb(u.username,u.used,mu,vol(u.used))).join('')}</section></div>
+ <div class="grid2"><section class="panel"><h2>Trafic par routeur (sessions en cours)</h2>${nasL.map(x=>hb(x.n,x.t,mt,vol(x.t))).join('')}</section>
+ <section class="panel"><h2>Ventes par revendeur</h2>${S.resellers.map(x=>hb(x.name,x.sold,Math.max(...S.resellers.map(y=>y.sold)),x.sold+' tickets')).join('')}</section></div>`};
+
+/* ---------- Journal ---------- */
+VIEWS.journal=()=>{curList=()=>{const q=(F.jq||'').toLowerCase();$('#list').innerHTML=tbl(['Date','Administrateur','Action'],S.audit.filter(a=>(a.who+a.what).toLowerCase().includes(q)).map(a=>[`<span class="num">${dt(a.t)}</span>`,`<span class="mono">${esc(a.who)}</span>`,`<span style="white-space:normal">${a.kind==='warn'?pill('attention','warn')+' ':''}${esc(a.what)}</span>`]))};
+ return head('Journal d\'audit','Toutes les actions des administrateurs, horodatées. Les entrées ne peuvent pas être modifiées.')+`<section class="panel"><div class="filters"><input class="inp" type="search" id="jq" placeholder="Filtrer par administrateur ou action" value="${esc(F.jq||'')}"></div><div id="list"></div></section>`};
+
+/* ---------- Paramètres ---------- */
+VIEWS.parametres=()=>{const s=S.settings;
+ return head('Paramètres','Configuration générale, serveur RADIUS, paiements, rôles et comptes administrateurs.')+
+ `<div class="grid2"><section class="panel"><h2>Organisation</h2><div class="form"><label class="full">Nom<input class="inp" id="s_org" value="${esc(s.org)}"></label><label>Devise<input class="inp" id="s_cur" value="${esc(s.currency)}"></label><label>Fuseau horaire<input class="inp" id="s_tz" value="${esc(s.tz)}"></label></div></section>
+ <section class="panel"><h2>Serveur RADIUS</h2><div class="form"><label>Port authentification<input class="inp" type="number" id="s_auth" value="${s.auth}"></label><label>Port comptabilité<input class="inp" type="number" id="s_acct" value="${s.acct}"></label><label>Port CoA<input class="inp" type="number" id="s_coa" value="${s.coa}"></label><label>Interim (s)<input class="inp" type="number" id="s_int" value="${s.interim}"></label><label>Déconnexion après inactivité (s)<input class="inp" type="number" id="s_idle" value="${s.idle}"></label></div></section></div>
+ <div class="grid2"><section class="panel"><h2>Mobile Money</h2><div class="form"><label class="full">Agrégateur de paiement<input class="inp" id="s_agg" value="${esc(s.aggregator)}"></label><label class="full">URL de rappel (callback)<input class="inp mono" id="s_cb" value="${esc(s.callback)}"></label><label class="full">Clé API<input class="inp mono" type="password" id="s_key" value="demo-key-000000" autocomplete="off"></label></div><p class="muted">Opérateurs activés : M-Pesa (Vodacom), Airtel Money, Orange Money. Le portail doit être joignable sans connexion (walled garden) pour recevoir la confirmation.</p></section>
+ <section class="panel"><h2>Sauvegardes & maintenance</h2><div class="list">${[['Sauvegarde PostgreSQL','Tous les jours à 02:30 · 14 conservées'],['Purge de radacct','Sessions de plus de 12 mois archivées'],['Expiration des comptes','Contrôle toutes les 5 min (tâche Celery)'],['Alertes routeur hors ligne','Après 3 Status-Server sans réponse']].map(([k,v])=>`<div class="li"><b>${k}</b><span class="muted" style="text-align:right">${v}</span></div>`).join('')}</div></section></div>
+ <div class="actions"><button class="btn pri" data-act="ssave">Enregistrer les paramètres</button></div>
+ <section class="panel"><div class="panel-h"><h2>Administrateurs</h2><button class="btn" data-act="aadd">Ajouter un administrateur</button></div>${tbl(['Nom','Identifiant','Rôle','Dernière activité','État',''],S.admins.map(a=>[esc(a.name),`<span class="mono">${esc(a.login)}</span>`,esc(a.role),dt(a.last),a.on?pill('actif','ok'):pill('désactivé','mute'),a.login==='admin'?'':`<div class="row-act"><button class="btn sm" data-act="atoggle" data-id="${a.id}">${a.on?'Désactiver':'Réactiver'}</button></div>`]))}</section>
+ <section class="panel"><h2>Rôles et permissions</h2><div class="tw"><table class="perm"><thead><tr><th>Permission</th>${S.roles.map(r=>`<th>${r}</th>`).join('')}</tr></thead><tbody>${S.perms.map(([n,v],i)=>`<tr><td>${n}</td>${v.map((x,j)=>`<td><input type="checkbox" id="perm_${i}_${j}" data-act="perm" data-id="${i}_${j}" ${x?'checked':''} ${j===0?'disabled':''} aria-label="${n} — ${S.roles[j]}"></td>`).join('')}</tr>`).join('')}</tbody></table></div></section>
+ <section class="panel"><h2>Architecture cible</h2><p class="muted">Comment cette console se branche sur la pile Django + PostgreSQL + FreeRADIUS.</p><pre class="attr"><span class="c"># FreeRADIUS lit directement la base PostgreSQL de Django (module rlm_sql)</span>
+<span class="k">Forfaits</span>       → radgroupcheck, radgroupreply
+<span class="k">Utilisateurs</span>   → radcheck (Cleartext-Password, Expiration), radusergroup
+<span class="k">Sessions</span>       → radacct (Start / Interim-Update / Stop)
+<span class="k">Routeurs</span>       → nas (shortname, secret, type)
+<span class="k">Vouchers</span>       → table Django, compte radcheck créé à la 1re utilisation
+<span class="k">Mobile Money</span>   → webhook Django → paiement réussi → compte + SMS
+<span class="k">Tâches</span>         → Celery + Redis (expirations, alertes, rapports)
+<span class="k">Déconnexion</span>    → radclient vers le port CoA ${s.coa} du routeur</pre></section>`};
+
+/* ---------- Rôles ---------- */
+const VIEWPERM={tableau:0,analytique:0,indio:0,sessions:1,utilisateurs:2,forfaits:3,vouchers:4,'point-de-vente':5,paiements:6,politiques:7,routeurs:7,'points-acces':7,portail:7,revendeurs:8,rapports:8,journal:9,parametres:9,marketing:10,conformite:11,support:12};
+const ACTPERM={kick:1,kickall:1,ukick:1,uadd:2,ubulk:2,uedit:2,utoggle:2,udel:2,urenew:2,upw:2,usms:2,umac:2,padd:3,pedit:3,pdel:3,vgen:4,vcancel:4,vbatchcancel:4,pdvreq:5,payok:6,payko:6,paysim:6,nadd:7,ndel:7,nsec:7,ntest:7,poladd:7,poltoggle:7,filt:7,apreboot:7,rogueok:7,login:7,psave:7,rtop:8,rgive:8,radd:8,dadd:8,dcredit:8,topok:8,topko:8,ssave:9,aadd:9,atoggle:9,perm:9,adadd:10,adtoggle:10,camadd:10,retsave:11,tedit:12,tadd:12};
+function can(i){return S.role===0||!!(S.perms[i]&&S.perms[i][1][S.role])}
+function canView(k){return VIEWPERM[k]==null||can(VIEWPERM[k])}
+function firstView(){return NAV.flatMap(g=>g[1]).map(n=>n[0]).find(canView)||'tableau'}
+function me(){return S.admins.find(a=>a.role===S.roles[S.role])||S.admins[0]}
+function go(v){if(cur===v)draw();else location.hash='#'+v}
+function setRole(j){S.role=+j;const v=canView(cur)?cur:firstView();toast(`Console vue par : ${S.roles[S.role]} (${me().login})`);if(v===cur)draw();else location.hash='#'+v}
+
+/* ---------- Persistance locale de la démo ---------- */
+const KEY='hotspotpro-demo-v3';let SKIPSAVE=false,svT;
+function saveNow(){clearTimeout(svT);svT=null;if(SKIPSAVE)return;try{localStorage.setItem(KEY,JSON.stringify({at:Date.now(),S}))}catch(e){}}
+function saveSoon(){if(SKIPSAVE||svT)return;svT=setTimeout(saveNow,400)}
+addEventListener('pagehide',saveNow);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
+
+/* ---------- Barre du haut & recherche globale ---------- */
+function topbar(){$('#topbar').innerHTML=`<div class="search"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input class="inp" type="search" id="gs" placeholder="Rechercher un client, un ticket, un paiement, une IP…" autocomplete="off" aria-label="Recherche globale"><kbd>/</kbd><div class="gsr" id="gsr" hidden></div></div><label class="role" for="role">Voir en tant que ${sel('role',S.roles.map((x,i)=>[i,x]),S.role)}</label><button class="btn" data-act="reset">Réinitialiser la démo</button>`}
+function hideGS(){const g=$('#gsr');if(g)g.hidden=true}
+function gsearch(q){const g=$('#gsr');q=q.trim().toLowerCase();if(q.length<2){g.hidden=true;return}const qd=q.replace(/\D/g,''),qc=q.replace(/[^a-z0-9]/g,''),hasD=x=>qd.length>=4&&String(x||'').replace(/\D/g,'').includes(qd),out=[];
+ const add=(v,t,items)=>{if(items.length&&canView(v))out.push([t,items.slice(0,5)])};
+ add('utilisateurs','Clients',S.users.filter(u=>u.username.toLowerCase().includes(q)||hasD(u.phone)||(u.mac&&u.mac.toLowerCase().includes(q))).map(u=>['u:'+u.id,u.username,`${plan(u.plan).name} · ${u.status}`]));
+ add('vouchers','Tickets',qc.length>=3?S.vouchers.filter(v=>v.code.toLowerCase().includes(qc)).map(v=>['v:'+v.code,v.code,`${plan(v.plan).name} · ${v.status}`]):[]);
+ add('paiements','Paiements',S.payments.filter(p=>p.ref.toLowerCase().includes(q)||p.tx.toLowerCase().includes(q)||hasD(p.phone)).map(p=>['p:'+p.ref,p.ref,`${p.op} · ${fc(p.amount)} · ${p.status}`]));
+ add('sessions','Sessions en ligne',S.sessions.filter(x=>x.ip.includes(q)||x.mac.toLowerCase().includes(q)||x.user.toLowerCase().includes(q)).map(x=>['s:'+x.user,x.user,`${x.ip} · ${x.nas}`]));
+ add('routeurs','Routeurs',S.nas.filter(n=>n.name.toLowerCase().includes(q)||n.ip.includes(q)).map(n=>['n:'+n.id,n.name,n.ip]));
+ add('revendeurs','Revendeurs',S.resellers.filter(x=>x.name.toLowerCase().includes(q)||hasD(x.phone)).map(x=>['r:'+x.id,x.name,x.zone]));
+ add('support','Réclamations',S.tickets.filter(t=>t.ref.toLowerCase().includes(q)||t.user.toLowerCase().includes(q)).map(t=>['t:'+t.id,t.ref,`${t.cat} · ${t.status}`]));
+ g.innerHTML=out.length?out.map(([t,items])=>`<h4>${t}</h4>${items.map(([k,a,b])=>`<button type="button" data-act="gsgo" data-id="${esc(k)}"><span class="mono">${esc(a)}</span><small>${esc(b)}</small></button>`).join('')}`).join(''):'<p class="muted" style="padding:10px">Aucun résultat.</p>';g.hidden=false}
+
+/* ---------- Tri et pagination des tableaux ---------- */
+const PAGE=25,SORTS={};let enR;
+function numOf(x){const d=x.match(/^(\d{2})\/(\d{2})(?:\/(\d{4}))?(?:\s+(\d{2}):(\d{2}))?/);if(d)return(+(d[3]||new Date().getFullYear()))*1e8+(+d[2])*1e6+(+d[1])*1e4+(+(d[4]||0))*100+(+(d[5]||0));
+ const m=x.replace(/[  ]/g,' ').match(/^([−-]?\d[\d ]*(?:,\d+)?)\s*(j|h|min|Go|Mo)?/);if(!m)return null;const v=parseFloat(m[1].replace(/ /g,'').replace(',','.').replace('−','-'));return v*({j:1440,h:60,Go:1024}[m[2]]||1)}
+function cmp(a,b){const x=numOf(a),y=numOf(b);if(x!=null&&y!=null)return x-y;return a.localeCompare(b,'fr',{numeric:true})}
+function enhance(){document.querySelectorAll('#main table').forEach((t,ti)=>{if(t.dataset.enh)return;t.dataset.enh='1';const tb=t.tBodies[0];if(!tb||!t.tHead)return;const key=cur+':'+ti;t._key=key;if(tb.rows.length<2)return;
+ if(!t.classList.contains('perm'))[...t.tHead.rows[0].cells].forEach((th,ci)=>{if(!th.textContent.trim())return;th.classList.add('sortable');th.tabIndex=0;th.setAttribute('aria-sort','none');const act=()=>{const o=SORTS[key]||{};const dir=o.ci===ci&&o.dir===1?-1:1;SORTS[key]=Object.assign(o,{ci,dir});sortT(t,ci,dir)};th.addEventListener('click',act);th.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act()}})});
+ const o=SORTS[key]||{};t._shown=o.shown||PAGE;if(o.ci!=null)sortT(t,o.ci,o.dir);else page(t)})}
+function sortT(t,ci,dir){const tb=t.tBodies[0];[...t.tHead.rows[0].cells].forEach((x,i)=>{if(x.classList.contains('sortable'))x.setAttribute('aria-sort',i===ci?(dir>0?'ascending':'descending'):'none')});[...tb.rows].sort((a,b)=>cmp((a.cells[ci]?.textContent||'').trim(),(b.cells[ci]?.textContent||'').trim())*dir).forEach(r=>tb.appendChild(r));page(t)}
+function page(t){const rs=[...t.tBodies[0].rows];rs.forEach((r,i)=>r.hidden=i>=t._shown);const wrap=t.parentElement;let pg=wrap.nextElementSibling;if(!pg||!pg.classList.contains('pager')){if(rs.length<=PAGE)return;pg=document.createElement('div');pg.className='pager';wrap.after(pg)}const left=rs.length-t._shown;pg.innerHTML=left>0?`<button type="button" class="btn sm">Afficher ${Math.min(PAGE,left)} de plus (${left} restantes)</button>`:'';const b=pg.querySelector('button');if(b)b.onclick=()=>{t._shown+=PAGE;SORTS[t._key]=Object.assign(SORTS[t._key]||{},{shown:t._shown});page(t)}}
+
+/* ---------- Export CSV ---------- */
+const csv=(h,rows)=>[h,...rows].map(r=>r.map(c=>{c=String(c??'');return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(';')).join('\n');
+function csvModal(title,n,text){modal(title,`<p class="muted">${n} ligne(s), séparées par des points-virgules pour Excel. L'aperçu bloque le téléchargement direct : copiez le texte et collez-le dans Excel ou dans un fichier .csv. La version déployée télécharge le fichier.</p><textarea class="inp mono" id="csvta" rows="12" readonly style="width:100%;margin-top:10px;font-size:.75rem;white-space:pre;overflow:auto">${esc(text)}</textarea>`,0,()=>{const ta=$('#csvta'),fail=()=>{ta.focus();ta.select();toast('Copie bloquée : le texte est sélectionné, utilisez Ctrl+C.')};try{navigator.clipboard.writeText(text).then(()=>{closeM();toast('CSV copié dans le presse-papiers')},fail)}catch(e){fail()}return false},'Copier')}
+
+/* ---------- Fiche client ---------- */
+let DU=null;
+function closeDrawer(){DU=null;const d=$('#drawer');if(d){d.hidden=true;$('#scrim').hidden=true}}
+function openUser(i){const u=S.users.find(x=>x.id==i);if(!u){closeDrawer();return}DU=u.id;const p=plan(u.plan),ss=S.sessions.filter(x=>x.user===u.username),dg=(u.phone||'').replace(/\D/g,'').slice(-9),pays=dg?S.payments.filter(x=>x.phone.replace(/\D/g,'').slice(-9)===dg):[],cdr=S.cdr.filter(c=>c.user===u.username),tk=S.tickets.filter(t=>t.user===u.username),left=u.expires-Date.now();
+ const d=$('#drawer');d.innerHTML=`<div class="panel-h"><div style="min-width:0"><h2 class="mono" style="font-size:1.25rem;overflow-wrap:anywhere">${esc(u.username)}</h2><p class="muted">${esc(u.source)} · créé le ${dt(u.created)}</p></div><button type="button" class="btn sm" data-act="dclose">Fermer</button></div>
+ <div class="actions">${stUser(u.status)}${ss.length?pill('en ligne','info'):''}${pill(p.name,'mute')}</div>
+ <div class="mini"><div><span>Consommé</span><b>${vol(u.used)}</b><small>${p.quota?'sur '+vol(p.quota):'volume illimité'}</small></div><div><span>Reste</span><b>${left>0?dur(left/MIN):'Expiré'}</b><small>${dt(u.expires)}</small></div><div><span>Appareils</span><b>${ss.length} / ${p.shared}</b><small>connectés</small></div></div>
+ <section class="panel"><h3>Actions</h3><div class="actions"><button class="btn pri sm" data-act="urenew" data-id="${u.id}">Renouveler</button><button class="btn sm" data-act="uedit" data-id="${u.id}">Modifier ou changer de forfait</button><button class="btn sm" data-act="usms" data-id="${u.id}">Envoyer les identifiants par SMS</button><button class="btn sm" data-act="upw" data-id="${u.id}">Nouveau mot de passe</button>${u.mac?`<button class="btn sm" data-act="umac" data-id="${u.id}">Délier la MAC</button>`:''}${ss.length?`<button class="btn sm danger" data-act="ukick" data-id="${u.id}">Déconnecter</button>`:''}<button class="btn sm" data-act="utoggle" data-id="${u.id}">${u.status==='suspendu'?'Réactiver':'Suspendre'}</button><button class="btn sm danger" data-act="udel" data-id="${u.id}">Supprimer</button></div></section>
+ <section class="panel"><h3>Identifiants</h3><div class="list">${[['Identifiant',`<b class="mono">${esc(u.username)}</b>`],['Mot de passe',u.password?`<b class="mono">${esc(u.password)}</b>`:'<span class="muted">aucun (accès par MAC)</span>'],['Téléphone',u.phone?`<span class="mono">${esc(u.phone)}</span>`:'<span class="muted">non renseigné</span>'],['Adresse MAC liée',u.mac?`<span class="mono">${esc(u.mac)}</span>`:'<span class="muted">aucune</span>']].map(([k,v])=>`<div class="li"><span class="muted">${k}</span>${v}</div>`).join('')}</div></section>
+ ${ss.length?`<section class="panel"><h3>En ligne maintenant</h3><div class="list">${ss.map(x=>`<div class="li"><div><span class="mono">${x.ip}</span><br><small class="muted">${esc(x.nas)} · <span class="mono">${x.mac}</span></small></div><span class="num">${dur((Date.now()-x.start)/MIN)} · ${vol(x.inMB+x.outMB)}</span></div>`).join('')}</div></section>`:''}
+ <section class="panel"><h3>Historique des connexions</h3>${cdr.length?`<div class="list">${cdr.slice(0,8).map(c=>`<div class="li"><div><span class="num">${dt(c.start)} → ${dt(c.stop)}</span><br><small class="muted">${esc(c.nas)} · <span class="mono">${c.ip}</span></small></div><span class="num">${vol(c.inMB+c.outMB)}</span></div>`).join('')}</div>`:'<p class="muted">Aucune session terminée sur la période conservée.</p>'}</section>
+ <section class="panel"><h3>Paiements</h3>${pays.length?`<div class="list">${pays.slice(0,8).map(x=>`<div class="li"><div><span class="mono">${x.ref}</span><br><small class="muted">${esc(x.op)} · ${esc(plan(x.plan).name)} · ${dt(x.date)}</small></div><div style="text-align:right"><b class="num">${fc(x.amount)}</b><br>${stPay(x.status)}</div></div>`).join('')}</div>`:`<p class="muted">${u.phone?'Aucun paiement Mobile Money depuis ce numéro.':'Compte sans numéro : paiement par ticket ou en espèces.'}</p>`}</section>
+ <section class="panel"><h3>Réclamations</h3>${tk.length?`<div class="list">${tk.map(t=>`<div class="li"><div><span class="mono">${t.ref}</span> · ${esc(t.cat)}<br><small class="muted">${dt(t.created)}</small></div>${stT(t.status)}</div>`).join('')}</div>`:'<p class="muted">Aucune réclamation.</p>'}</section>`;
+ d.hidden=false;$('#scrim').hidden=false}
+
+/* ---------- Réclamations ---------- */
+const stT=x=>pill(x,x==='résolu'?'ok':x==='en cours'?'info':'warn');
+const prT=x=>pill(x,x==='haute'?'bad':'mute');
+VIEWS.support=()=>{const o=S.tickets.filter(t=>t.status==='ouvert').length,c=S.tickets.filter(t=>t.status==='en cours').length,rs=S.tickets.filter(t=>t.resolvedAt),avg=rs.length?rs.reduce((a,t)=>a+(t.resolvedAt-t.created),0)/rs.length/MIN:0;
+ curList=()=>{const st=F.ts||'';const l=S.tickets.filter(t=>!st||t.status===st).sort((a,b)=>(a.status==='résolu')-(b.status==='résolu')||b.created-a.created);
+  $('#list').innerHTML=tbl(['Réf.','Client','Problème','Priorité','Statut','Assigné à','Ouverte le',''],l.map(t=>{const u=S.users.find(x=>x.username===t.user);return[`<span class="mono">${t.ref}</span>`,(u?`<button type="button" class="lnk mono" data-act="uopen" data-id="${u.id}">${esc(t.user)}</button>`:`<span class="mono">${esc(t.user)}</span>`)+`<br><small class="muted mono">${esc(t.phone||'')}</small>`,`<div style="white-space:normal;min-width:220px"><b>${esc(t.cat)}</b><br><span class="muted">${esc(t.msg)}</span></div>`,prT(t.prio),stT(t.status),t.assignee?`<span class="mono">${esc(t.assignee)}</span>`:'<span class="muted">—</span>',dt(t.created),`<div class="row-act"><button class="btn sm" data-act="tedit" data-id="${t.id}">Traiter</button></div>`]}),'Aucune réclamation pour ce filtre.')};
+ return head('Réclamations','Demandes des clients : paiement non reçu, ticket refusé, lenteurs. Chaque réclamation est liée à la fiche du client.',`<button class="btn pri" data-act="tadd">Nouvelle réclamation</button>`)+
+ `<div class="kpis"><div class="kpi"><span>Ouvertes</span><b>${o}</b><small>à prendre en charge</small></div><div class="kpi"><span>En cours</span><b>${c}</b><small>assignées</small></div><div class="kpi"><span>Résolues</span><b>${rs.length}</b><small>au total</small></div><div class="kpi"><span>Délai moyen</span><b>${rs.length?dur(avg):'—'}</b><small>jusqu'à résolution</small></div></div>
+ <section class="panel"><div class="filters">${sel('ts',[['','Tous les statuts'],['ouvert','Ouvertes'],['en cours','En cours'],['résolu','Résolues']],F.ts||'')}</div><div id="list"></div></section>`};
+
+/* ---------- Point de vente revendeur ---------- */
+let PDVRES=null;
+const sameDay=t=>!!t&&new Date(t).toDateString()===new Date().toDateString();
+function pdvR(){return S.role===3?S.resellers[0]:(S.resellers.find(x=>x.id==F.pdv)||S.resellers[0])}
+VIEWS['point-de-vente']=()=>{const R=pdvR();if(!R)return head('Point de vente','Aucun revendeur enregistré. Ajoutez-en un dans Distribution.');
+ const mine=S.vouchers.filter(v=>v.reseller===R.id),stock=S.plans.filter(p=>!p.free).map(p=>[p,mine.filter(v=>v.plan===p.id&&v.status==='disponible').length]),tot=stock.reduce((a,x)=>a+x[1],0),sold=mine.filter(v=>v.soldAt).sort((a,b)=>b.soldAt-a.soldAt),td=sold.filter(v=>sameDay(v.soldAt)),com=sold.reduce((a,v)=>a+plan(v.plan).price*R.commission/100,0),pend=S.topups.filter(t=>t.res===R.id&&t.status==='en attente'),mx=Math.max(1,...stock.map(x=>x[1]));
+ const sell=PDVRES?`<p class="muted">Remettez ce code au client et encaissez <b>${fc(PDVRES.price)}</b>.</p><div class="codebig">${PDVRES.code.slice(0,4)}-${PDVRES.code.slice(4)}</div><p class="muted">${esc(PDVRES.plan)} · ${esc(PDVRES.info)}${PDVRES.phone?` · code envoyé par SMS au ${esc(PDVRES.phone)}`:''}</p><div class="actions"><button class="btn" data-act="pdvcopy" data-id="${PDVRES.code}">Copier le code</button><button class="btn pri" data-act="pdvnew">Vendre un autre ticket</button></div>`
+  :tot?`<form id="pdvsell" class="form"><label class="full">Forfait<select class="inp" name="plan" id="pdv_plan">${stock.map(([p,n])=>`<option value="${p.id}" ${n?'':'disabled'}>${esc(p.name)} — ${fc(p.price)} (${n} en stock)</option>`).join('')}</select></label><label class="full">Téléphone du client (facultatif)<input class="inp" name="phone" id="pdv_phone" inputmode="tel" placeholder="+243 81 234 5678"></label><div class="full actions"><button class="btn pri">Vendre et afficher le code</button></div></form><p class="muted" style="font-size:.82rem">Avec un numéro, le code est aussi envoyé au client par SMS.</p>`
+  :`<p class="alert warn" style="background:var(--surface2)">Stock épuisé. Demandez un lot ou une recharge à votre distributeur.</p>`;
+ return head('Point de vente',`${esc(R.name)} · ${esc(R.zone)} · ${esc(distOf(R)?.name||'Opérateur')}. Choisissez le forfait, puis remettez le code au client.`,`${S.role!==3?sel('pdv',S.resellers.map(x=>[x.id,'Voir : '+x.name]),R.id):''}<button class="btn" data-act="pdvreq">Demander une recharge</button>`)+
+ `<div class="kpis"><div class="kpi"><span>Solde prépayé</span><b>${R.balance.toLocaleString('fr-FR')}</b><small>FC${pend.length?` · ${pend.length} demande en attente`:''}</small></div><div class="kpi"><span>Tickets en stock</span><b>${tot}</b><small>prêts à vendre</small></div><div class="kpi"><span>Ventes du jour</span><b>${td.length}</b><small>${fc(td.reduce((a,v)=>a+plan(v.plan).price,0))} encaissés</small></div><div class="kpi"><span>Commission gagnée</span><b>${Math.round(com).toLocaleString('fr-FR')}</b><small>FC · ${R.commission} % par vente</small></div></div>
+ <div class="grid2"><section class="panel"><h2>Vendre un ticket</h2>${sell}</section><section class="panel"><h2>Stock par forfait</h2>${stock.map(([p,n])=>HB(p.name,n,mx,n+' ticket(s)')).join('')}</section></div>
+ <section class="panel"><h2>Dernières ventes</h2>${tbl(['Code','Forfait','Prix','Client','Vendu le','État'],sold.slice(0,60).map(v=>[`<span class="mono">${v.code}</span>`,esc(plan(v.plan).name),`<span class="num">${fc(plan(v.plan).price)}</span>`,`<span class="mono">${esc(v.soldPhone||'—')}</span>`,dt(v.soldAt),v.status==='utilisé'?pill('activé','mute'):pill('pas encore activé','info')]),'Aucune vente pour le moment.')}</section>`};
+function topupPanel(){const l=S.topups.filter(t=>t.status==='en attente');if(!l.length)return'';return`<section class="panel"><h2>Demandes de recharge</h2>${tbl(['Revendeur','Débité de','Montant','Demandée le',''],l.map(t=>{const x=S.resellers.find(y=>y.id===t.res);return[`<b>${esc(x?.name||'Revendeur supprimé')}</b>`,esc((x&&distOf(x)?.name)||'Opérateur'),`<b class="num">${fc(t.amount)}</b>`,dt(t.date),`<div class="row-act"><button class="btn sm" data-act="topok" data-id="${t.id}">Valider</button><button class="btn sm danger" data-act="topko" data-id="${t.id}">Refuser</button></div>`]}))}</section>`}
+
+/* ---------- Actions ---------- */
+const A={
+ kick(i){const s=S.sessions.find(x=>x.id==i);confirmM('Déconnecter la session',`Envoyer un Disconnect-Request à <b>${esc(s.nas)}</b> pour <b class="mono">${esc(s.user)}</b> ? Le client devra se reconnecter.`,()=>{S.sessions=S.sessions.filter(x=>x!==s);log('admin',`Session ${s.user} déconnectée (CoA Disconnect-Request)`);toast(`${s.user} déconnecté de ${s.nas}`)},'Déconnecter')},
+ kickall(){modal('Déconnecter tout un routeur',`<div class="form"><label class="full">Routeur${sel('nas',onlineNas().map(n=>[n.name,`${n.name} — ${S.sessions.filter(s=>s.nas===n.name).length} session(s)`]))}</label></div><p class="muted" style="margin-top:10px">Utile avant une maintenance. Les clients pourront se reconnecter ensuite.</p>`,'danger',d=>{const n=S.sessions.filter(s=>s.nas===d.nas).length;S.sessions=S.sessions.filter(s=>s.nas!==d.nas);log('admin',`${n} session(s) déconnectée(s) sur ${d.nas}`,'warn');toast(`${n} session(s) fermée(s) sur ${d.nas}`)},'Déconnecter')},
+ uadd(){modal('Nouvel utilisateur',userForm(),0,d=>{if(S.users.some(u=>u.username===d.username)){toast('Ce nom d\'utilisateur existe déjà. Choisissez-en un autre.');return false}const p=plan(d.plan);S.users.unshift({id:id(),username:d.username,password:d.password,plan:+d.plan,phone:d.phone,mac:d.mac.toUpperCase(),created:Date.now(),expires:Date.now()+p.validity*DAY,status:'actif',used:0,source:'Manuel'});log('admin',`Utilisateur ${d.username} créé (${p.name})`);toast(`Compte ${d.username} créé`)},'Créer le compte')},
+ ubulk(){modal('Création en masse',`<div class="form"><label>Nombre de comptes<input class="inp" type="number" name="n" min="1" max="500" value="20"></label><label>Préfixe<input class="inp" name="pre" value="event-" pattern="[a-z0-9-]{1,12}"></label><label class="full">Forfait${sel('plan',planOpts(),S.plans[1].id)}</label></div><p class="muted" style="margin-top:10px">Pratique pour un événement ou une entreprise. Les mots de passe sont générés aléatoirement.</p>`,0,d=>{const p=plan(d.plan),n=Math.min(500,+d.n);for(let i=1;i<=n;i++)S.users.unshift({id:id(),username:d.pre+String(i).padStart(3,'0')+code(2).toLowerCase(),password:String(Math.floor(100000+Math.random()*900000)),plan:+d.plan,phone:'',mac:'',created:Date.now(),expires:Date.now()+p.validity*DAY,status:'actif',used:0,source:'Manuel'});log('admin',`${n} comptes créés en masse (${p.name})`);toast(`${n} comptes créés`)},'Créer')},
+ uedit(i){const u=S.users.find(x=>x.id==i);modal('Modifier '+u.username,userForm(u),0,d=>{u.password=d.password;u.plan=+d.plan;u.phone=d.phone;u.mac=d.mac.toUpperCase();if(+d.extend>0){u.expires=Math.max(u.expires,Date.now())+d.extend*DAY;if(u.status==='expiré')u.status='actif'}if(d.reset)u.used=0;log('admin',`Utilisateur ${u.username} modifié`);toast('Modifications enregistrées')})},
+ utoggle(i){const u=S.users.find(x=>x.id==i);u.status=u.status==='suspendu'?(u.expires<Date.now()?'expiré':'actif'):'suspendu';if(u.status==='suspendu')S.sessions=S.sessions.filter(s=>s.user!==u.username);log('admin',`Utilisateur ${u.username} ${u.status==='suspendu'?'suspendu':'réactivé'}`,u.status==='suspendu'?'warn':'info');toast(`${u.username} : ${u.status}`);refresh()},
+ udel(i){const u=S.users.find(x=>x.id==i);confirmM('Supprimer le compte',`Supprimer définitivement <b class="mono">${esc(u.username)}</b> ? L'historique de consommation reste dans les rapports.`,()=>{S.users=S.users.filter(x=>x!==u);S.sessions=S.sessions.filter(s=>s.user!==u.username);log('admin',`Utilisateur ${u.username} supprimé`,'warn');toast('Compte supprimé')},'Supprimer')},
+ padd(){modal('Nouveau forfait',planForm(),0,d=>{const p={id:id()};['price','duration','validity','quota','down','up','shared'].forEach(k=>p[k]=+d[k]);p.name=d.name;S.plans.push(p);log('admin',`Forfait « ${p.name} » créé à ${fc(p.price)}`);toast('Forfait créé')},'Créer')},
+ pedit(i){const p=plan(i);modal('Modifier '+p.name,planForm(p),0,d=>{const old=p.price;['price','duration','validity','quota','down','up','shared'].forEach(k=>p[k]=+d[k]);p.name=d.name;log('admin',`Forfait « ${p.name} » modifié${old!==p.price?` : ${fc(old)} → ${fc(p.price)}`:''}`);toast('Forfait mis à jour')})},
+ pattr(i){const p=plan(i);modal('Attributs RADIUS — '+p.name,`<pre class="attr">${radAttrs(p)}</pre>`,0,()=>{},'Fermer')},
+ pdel(i){const p=plan(i),n=S.users.filter(u=>u.plan===p.id).length;if(n){toast(`Impossible : ${n} compte(s) utilisent encore « ${p.name} ». Changez-les de forfait d'abord.`);return}confirmM('Supprimer le forfait',`Supprimer « ${esc(p.name)} » ?`,()=>{S.plans=S.plans.filter(x=>x!==p);log('admin',`Forfait « ${p.name} » supprimé`,'warn')},'Supprimer')},
+ vgen(){modal('Générer un lot de tickets',`<div class="form"><label class="full">Forfait${sel('plan',planOpts(),S.plans[0].id)}</label><label>Quantité<input class="inp" type="number" name="n" min="1" max="1000" value="40"></label><label>Longueur du code<input class="inp" type="number" name="len" min="6" max="12" value="8"></label><label class="full">Revendeur${sel('res',[['','Stock central'],...S.resellers.map(x=>[x.id,x.name])],'')}</label></div><p class="muted" style="margin-top:10px">Les codes excluent les caractères ambigus (0, O, 1, I) pour éviter les erreurs de saisie.</p>`,0,d=>{const n=Math.min(1000,+d.n),b='B-'+new Date().toISOString().slice(2,4)+new Date().toISOString().slice(5,7)+'-'+String(S.vouchers.length%97).padStart(2,'0');for(let i=0;i<n;i++)S.vouchers.unshift({id:id(),code:code(+d.len),plan:+d.plan,batch:b,reseller:d.res?+d.res:null,status:'disponible',created:Date.now()});F.vb=b;log('admin',`Lot ${b} généré : ${n} tickets « ${plan(d.plan).name} »`);toast(`Lot ${b} : ${n} tickets créés`);draw()},'Générer')},
+ vsheet(){F.sheet=!F.sheet;draw()},
+ vcancel(i){const v=S.vouchers.find(x=>x.id==i);v.status='annulé';log('admin',`Ticket ${v.code} annulé`,'warn');toast('Ticket annulé');refresh()},
+ paysim(){modal('Enregistrer un paiement',`<div class="form"><label>Opérateur${sel('op',Object.keys(OPS).map(o=>[o,o]),'M-Pesa')}</label><label>Téléphone<input class="inp" name="phone" required placeholder="+243 81 234 5678"></label><label class="full">Forfait${sel('plan',planOpts(),S.plans[1].id)}</label><label class="full">ID de transaction opérateur<input class="inp mono" name="tx" required placeholder="ex. MP26111100123"></label></div>`,0,d=>{const p=plan(d.plan);S.payments.unshift({id:id(),ref:'PAY-'+(270000+S.payments.length),tx:d.tx,phone:d.phone,op:d.op,plan:p.id,amount:p.price,status:'réussi',date:Date.now()});S.daily[13].m+=p.price;const un=d.phone.replace(/\D/g,'').slice(-9);S.users.unshift({id:id(),username:un,password:String(Math.floor(100000+Math.random()*900000)),plan:p.id,phone:d.phone,mac:'',created:Date.now(),expires:Date.now()+p.validity*DAY,status:'actif',used:0,source:'Mobile Money'});log('patrick.l',`Paiement ${d.tx} enregistré manuellement (${fc(p.price)})`);toast(`Paiement enregistré, compte ${un} créé`)})},
+ payok(i){const p=S.payments.find(x=>x.id==i);p.status='réussi';S.daily[13].m+=p.amount;log('admin',`Paiement ${p.ref} validé`);toast('Paiement validé, compte activé');refresh()},
+ payko(i){const p=S.payments.find(x=>x.id==i);confirmM('Rejeter le paiement',`Marquer ${p.ref} comme échoué ? Aucun compte ne sera créé.`,()=>{p.status='échoué';log('admin',`Paiement ${p.ref} rejeté`,'warn')},'Rejeter')},
+ radd(){modal('Nouveau revendeur',`<div class="form"><label class="full">Nom du point de vente<input class="inp" name="name" required></label><label>Distributeur${sel('dist',S.distributors.map(d=>[d.id,d.name]),S.distributors[0]?.id)}</label><label>Zone / commune<input class="inp" name="zone" required></label><label>Téléphone<input class="inp" name="phone" required></label><label>Commission (%)<input class="inp" type="number" name="com" min="0" max="50" value="10"></label></div>`,0,d=>{S.resellers.push({id:id(),name:d.name,dist:+d.dist,zone:d.zone,phone:d.phone,commission:+d.com,balance:0,sold:0});log('admin',`Revendeur ${d.name} ajouté`);toast('Revendeur ajouté')},'Ajouter')},
+ rtop(i){const x=S.resellers.find(y=>y.id==i),d=distOf(x);modal('Recharger '+x.name,`<div class="form"><label>Montant (FC)<input class="inp" type="number" name="a" min="500" step="500" required value="20000"></label><label>Encaissé par${sel('m',[['Espèces','Espèces'],['M-Pesa','M-Pesa'],['Airtel Money','Airtel Money'],['Orange Money','Orange Money']],'Espèces')}</label></div><p class="muted" style="margin-top:10px">${d?`Débité du portefeuille de ${esc(d.name)} (${fc(d.wallet)} disponibles).`:'Débité du portefeuille opérateur.'}</p>`,0,f=>{const a=+f.a,src=d||S.op;if(a>src.wallet){toast(`Portefeuille insuffisant : ${fc(src.wallet)} disponibles.`);return false}src.wallet-=a;x.balance+=a;log('patrick.l',`Recharge ${x.name} : +${fc(a)} (${f.m}) depuis ${d?d.name:'opérateur'}`);toast(`Nouveau solde : ${fc(x.balance)}`)},'Recharger')},
+ rgive(i){const x=S.resellers.find(y=>y.id==i);modal('Attribuer des tickets à '+x.name,`<div class="form"><label class="full">Forfait${sel('plan',planOpts(),S.plans[0].id)}</label><label>Quantité<input class="inp" type="number" name="n" min="1" max="500" value="20"></label></div><p class="muted" style="margin-top:10px">Le solde est débité au prix revendeur : prix public − ${x.commission} %.</p>`,0,d=>{const p=plan(d.plan),n=+d.n,cost=Math.round(n*p.price*(1-x.commission/100));if(cost>x.balance){toast(`Solde insuffisant : il faut ${fc(cost)}, le revendeur a ${fc(x.balance)}.`);return false}x.balance-=cost;const b='R-'+x.name.split(' ')[0].slice(0,4).toUpperCase()+'-'+(S.vouchers.length%97);for(let k=0;k<n;k++)S.vouchers.unshift({id:id(),code:code(8),plan:p.id,batch:b,reseller:x.id,status:'disponible',created:Date.now()});log('admin',`${n} tickets « ${p.name} » attribués à ${x.name} (${fc(cost)})`);toast(`${n} tickets attribués, ${fc(cost)} débités`)},'Attribuer')},
+ nadd(){modal('Ajouter un routeur',`<div class="form"><label>Nom<input class="inp" name="name" required placeholder="HS-Masina-05"></label><label>Adresse IP<input class="inp mono" name="ip" required pattern="\\d{1,3}(\\.\\d{1,3}){3}" placeholder="10.10.5.1"></label><label>Type${sel('type',[['Ubiquiti UniFi','Ubiquiti UniFi'],['TP-Link Omada','TP-Link Omada'],['pfSense Captive Portal','pfSense'],['OpenWrt + CoovaChilli','OpenWrt + CoovaChilli'],['Cisco / Aruba','Cisco / Aruba'],['Autre (RFC 2865)','Autre']],'Ubiquiti UniFi')}</label><label>Zone<input class="inp" name="zone"></label><label class="full">Secret partagé<input class="inp mono" name="secret" required minlength="8" value="${code(12)}"></label></div>`,0,d=>{S.nas.push({id:id(),name:d.name,ip:d.ip,type:d.type,zone:d.zone,secret:d.secret,online:true});log('grace.m',`Routeur ${d.name} (${d.ip}) ajouté`);toast('Routeur ajouté. Pensez à recharger FreeRADIUS.')},'Ajouter')},
+ nsec(i){F['sec'+i]=!F['sec'+i];draw()},
+ ntest(i){const n=S.nas.find(x=>x.id==i);toast(`Status-Server vers ${n.ip}…`);setTimeout(()=>{if(n.online)toast(`${n.name} a répondu en ${8+Math.floor(Math.random()*30)} ms`);else{toast(`${n.name} ne répond pas. Vérifiez l'IP et le secret partagé.`);log('grace.m',`NAS ${n.name} : aucune réponse au Status-Server`,'warn')}},900)},
+ ndel(i){const n=S.nas.find(x=>x.id==i);confirmM('Retirer le routeur',`Retirer <b>${esc(n.name)}</b> ? Ses requêtes RADIUS seront refusées.`,()=>{S.nas=S.nas.filter(x=>x!==n);S.sessions=S.sessions.filter(s=>s.nas!==n.name);log('grace.m',`Routeur ${n.name} retiré`,'warn')},'Retirer')},
+ ptab(t){PT=t;PMSG='';PRES='';SMSS=null;draw()},
+ pfill(c){$('#pc').value=c},
+ psave(){S.settings.portalTitle=$('#pt_title').value;S.settings.portalMsg=$('#pt_msg').value;log('admin','Textes du portail captif modifiés');draw();toast('Portail mis à jour')},
+ preset(){PRES='';PMSG='';draw()},
+ ssave(){const s=S.settings,g=k=>$('#'+k).value;Object.assign(s,{org:g('s_org'),currency:g('s_cur'),tz:g('s_tz'),auth:+g('s_auth'),acct:+g('s_acct'),coa:+g('s_coa'),interim:+g('s_int'),idle:+g('s_idle'),aggregator:g('s_agg'),callback:g('s_cb')});log('admin','Paramètres généraux modifiés');toast('Paramètres enregistrés')},
+ aadd(){modal('Ajouter un administrateur',`<div class="form"><label>Nom<input class="inp" name="name" required></label><label>Identifiant<input class="inp mono" name="login" required pattern="[a-z0-9._-]{3,30}"></label><label class="full">Rôle${sel('role',S.roles.map(r=>[r,r]),'Caissier')}</label></div><p class="muted" style="margin-top:10px">Un lien d'activation lui permettra de choisir son mot de passe. La double authentification est exigée.</p>`,0,d=>{S.admins.push({id:id(),name:d.name,login:d.login,role:d.role,last:Date.now(),on:true});log('admin',`Administrateur ${d.login} ajouté (${d.role})`);toast('Administrateur ajouté')},'Ajouter')},
+ atoggle(i){const a=S.admins.find(x=>x.id==i);a.on=!a.on;log('admin',`Administrateur ${a.login} ${a.on?'réactivé':'désactivé'}`,'warn');draw()},
+ perm(k,el){const[i,j]=k.split('_');S.perms[i][1][j]=el.checked?1:0;log('admin',`Permission « ${S.perms[i][0]} » ${el.checked?'accordée':'retirée'} : ${S.roles[j]}`);toast('Permission mise à jour')},
+ dadd(){modal('Nouveau distributeur',`<div class="form"><label class="full">Nom<input class="inp" name="name" required></label><label>Zones couvertes<input class="inp" name="zone" required></label><label>Téléphone<input class="inp" name="phone" required></label><label>Part sur les ventes (%)<input class="inp" type="number" name="share" min="0" max="40" value="12"></label></div>`,0,d=>{S.distributors.push({id:id(),name:d.name,zone:d.zone,phone:d.phone,share:+d.share,wallet:0});log('admin',`Distributeur ${d.name} ajouté`);toast('Distributeur ajouté')},'Ajouter')},
+ dcredit(i){const d=S.distributors.find(x=>x.id==i);modal('Créditer '+d.name,`<div class="form"><label>Montant (FC)<input class="inp" type="number" name="a" min="1000" step="1000" required value="100000"></label><label>Référence du versement<input class="inp mono" name="ref" required placeholder="ex. virement, reçu"></label></div><p class="muted" style="margin-top:10px">Débité du portefeuille opérateur (${fc(S.op.wallet)} disponibles).</p>`,0,f=>{const a=+f.a;if(a>S.op.wallet){toast(`Portefeuille opérateur insuffisant : ${fc(S.op.wallet)}.`);return false}S.op.wallet-=a;d.wallet+=a;log('admin',`${d.name} crédité de ${fc(a)} (réf. ${f.ref})`);toast(`Portefeuille ${d.name} : ${fc(d.wallet)}`)},'Créditer')},
+ login(k,el){const l=S.login.find(x=>x.k===k);l.on=el.checked;PRES='';SMSS=null;PMSG='';log('admin',`Méthode de connexion « ${l.n} » ${l.on?'activée':'désactivée'}`);draw()},
+ pfree(){const ad=S.ads.find(a=>a.on&&a.slot.startsWith('Accès gratuit'))||S.ads.find(a=>a.on);if(ad)ad.imp++;let s=S.free.adSec;const show=()=>{PRES=`<div class="adbox"><small>Publicité · ${esc(ad?ad.sponsor:'Partenaire')}</small><b>${esc(ad?ad.name:'Annonce')}</b><span>${esc(ad?ad.type:'')}</span></div><p class="hint" style="text-align:center">Connexion gratuite dans <b class="num">${s}</b> s</p>`;phRender()};show();const t=setInterval(()=>{s--;if(s<=0){clearInterval(t);freeConnect();phRender();$('#nav').innerHTML=navHTML()}else show()},1000)},
+ pfillp(p){const i=$('#psms1 input[name=phone]');if(i)i.value=p},
+ psmsback(){SMSS=null;PMSG='';draw()},
+ psocial(x){toast(`Connexion ${x} : à activer avec vos clés développeur ${x} dans la version déployée.`)},
+ poltoggle(i,el){const p=S.policies.find(x=>x.id==i);p.on=el.checked;log('admin',`Règle « ${p.name} » ${p.on?'activée':'désactivée'}`);toast(p.on?'Règle activée':'Règle désactivée')},
+ poladd(){modal('Nouvelle règle',`<div class="form"><label class="full">Nom<input class="inp" name="name" required></label><label class="full">S'applique à${sel('scope',[['Tous les forfaits','Tous les forfaits'],...S.plans.map(p=>[p.name,p.name])],'Tous les forfaits')}</label><label class="full">Effet<input class="inp" name="rule" required placeholder="ex. Débit réduit à 2 Mbit/s après 3 Go dans la journée"></label></div>`,0,d=>{S.policies.push({id:id(),name:d.name,scope:d.scope,rule:d.rule,on:true});log('admin',`Règle « ${d.name} » créée`);toast('Règle créée')},'Créer')},
+ filt(i,el){S.filters[i][1]=el.checked;log('admin',`Filtrage « ${S.filters[i][0]} » ${el.checked?'activé':'désactivé'}`);toast('Filtrage mis à jour')},
+ apreboot(i){const a=S.aps.find(x=>x.id==i);log('grace.m',`Redémarrage demandé pour ${a.name}`);toast(`${a.name} redémarre (environ 2 min)`)},
+ rogueok(i){const g=S.rogue.find(x=>x.id==i);S.rogue=S.rogue.filter(x=>x!==g);log('grace.m',`Réseau « ${g.ssid} » marqué comme connu`);draw()},
+ adtoggle(i,el){const a=S.ads.find(x=>x.id==i);a.on=el.checked;log('admin',`Publicité « ${a.name} » ${a.on?'activée':'suspendue'}`);toast(a.on?'Publicité activée':'Publicité suspendue')},
+ adadd(){modal('Nouvelle publicité',`<div class="form"><label class="full">Titre<input class="inp" name="name" required></label><label>Annonceur<input class="inp" name="sponsor" required></label><label>Format${sel('type',[['Image','Image'],['Vidéo 15 s','Vidéo 15 s'],['Vidéo 30 s','Vidéo 30 s']],'Image')}</label><label class="full">Emplacement${sel('slot',[['Avant connexion','Avant connexion'],['Après connexion','Après connexion'],['Accès gratuit (avant)','Accès gratuit (avant)'],['Intermittente (toutes les 45 min)','Intermittente (toutes les 45 min)']],'Avant connexion')}</label><label>Durée (jours)<input class="inp" type="number" name="days" min="1" max="365" value="14"></label><label>Fichier<input class="inp" type="file" name="f" accept="image/*,video/*"></label></div>`,0,d=>{S.ads.unshift({id:id(),name:d.name,sponsor:d.sponsor,type:d.type,slot:d.slot,imp:0,clk:0,on:true,until:Date.now()+d.days*DAY});log('admin',`Publicité « ${d.name} » créée (${d.slot})`);toast('Publicité en ligne')},'Publier')},
+ camadd(){modal('Nouvelle campagne SMS',`<div class="form"><label class="full">Nom<input class="inp" name="name" required value="Offre du week-end"></label><label class="full">Cible${sel('seg',SEGS().map(([k,l,n])=>[k,`${l} (${n})`]),'exp')}</label><label class="full">Message (160 caractères max.)<textarea class="inp" name="msg" maxlength="160" rows="3" required>${esc(S.settings.portalTitle)} : forfait Semaine à 7 500 FC ce week-end. Achetez sur le portail ou chez votre revendeur.</textarea></label></div>`,0,d=>{const g=SEGS().find(x=>x[0]===d.seg);S.campaigns.unshift({id:id(),name:d.name,seg:g[1],ch:'SMS',sent:g[2],conv:0,date:Date.now(),st:'Envoyée'});log('admin',`Campagne « ${d.name} » envoyée à ${g[2]} numéros`);toast(`${g[2]} SMS envoyés`)},'Envoyer')},
+ retsave(){S.retention=+$('#ret').value;log('admin',`Conservation des journaux : ${S.retention} mois`);toast('Durée de conservation enregistrée')},
+ cexport(){A.export('cdr')},
+ export(k){const j=(h,rows,title)=>csvModal(title,rows.length,csv(h,rows));
+  if(k==='users')return j(['Utilisateur','Mot de passe','Forfait','Statut','Téléphone','MAC','Créé le','Expire le','Consommé (Mo)','Origine'],S.users.map(u=>[u.username,u.password,plan(u.plan).name,u.status,u.phone,u.mac,dt(u.created),dt(u.expires),Math.round(u.used),u.source]),'Export des utilisateurs');
+  if(k==='payments')return j(['Référence','Transaction','Téléphone','Opérateur','Forfait','Montant (FC)','Statut','Date'],S.payments.map(p=>[p.ref,p.tx,p.phone,p.op,plan(p.plan).name,p.amount,p.status,dt(p.date)]),'Export des paiements');
+  if(k==='cdr'){if(!can(11)){toast(`Votre rôle (${S.roles[S.role]}) ne permet pas d'exporter les journaux.`);return}return j(['Début','Fin','Utilisateur','MAC','IP','Routeur','Reçu (Mo)','Envoyé (Mo)'],S.cdr.map(c=>[dt(c.start),dt(c.stop),c.user,c.mac,c.ip,c.nas,Math.round(c.inMB),Math.round(c.outMB)]),'Export des connexions (CDR)')}
+  if(k==='daily')return j(['Date','Tickets (FC)','Mobile Money (FC)','Total (FC)'],S.daily.map(d=>[d0(d.date),d.v,d.m,d.v+d.m]),'Export des recettes');
+  const isB=!!k&&k.startsWith('batch:'),b=isB?k.slice(6):(F.vb||''),l=S.vouchers.filter(v=>(!b||v.batch===b)&&(isB||!F.vs||v.status===F.vs));
+  return j(['Code','Forfait','Prix (FC)','Lot','Revendeur','Statut','Créé le'],l.map(v=>[v.code,plan(v.plan).name,plan(v.plan).price,v.batch,S.resellers.find(x=>x.id===v.reseller)?.name||'Stock central',v.status,d0(v.created)]),b?'Export du lot '+b:'Export des tickets')},
+ uopen(i){openUser(i)},
+ dclose(){closeDrawer()},
+ urenew(i){const u=S.users.find(x=>x.id==i),cp=plan(u.plan);modal('Renouveler '+u.username,`<div class="form"><label class="full">Forfait${sel('plan',planOpts(),cp.free?S.plans[0].id:cp.id)}</label><label class="full">Encaissement${sel('pay',[['Espèces','Espèces (caisse)'],['M-Pesa','M-Pesa'],['Airtel Money','Airtel Money'],['Orange Money','Orange Money'],['Offert','Offert (geste commercial)']],'Espèces')}</label></div><p class="muted" style="margin-top:10px">Si le forfait est encore actif, la nouvelle validité s'ajoute à la date d'expiration actuelle. La consommation repart de zéro.</p>`,0,d=>{const p=plan(d.plan);u.plan=p.id;u.expires=Math.max(u.expires,Date.now())+p.validity*DAY;u.used=0;u.status='actif';if(OPS[d.pay]){S.payments.unshift({id:id(),ref:'PAY-'+(290000+S.payments.length),tx:d.pay.slice(0,2).toUpperCase()+Math.floor(1e7+Math.random()*9e7),phone:u.phone||'—',op:d.pay,plan:p.id,amount:p.price,status:'réussi',date:Date.now()});S.daily[13].m+=p.price}else if(d.pay==='Espèces')S.daily[13].v+=p.price;log('admin',`${u.username} renouvelé : ${p.name} (${d.pay})`);toast(`${u.username} renouvelé jusqu'au ${dt(u.expires)}`)},'Renouveler')},
+ upw(i){const u=S.users.find(x=>x.id==i);u.password=String(Math.floor(100000+Math.random()*900000));log('admin',`Mot de passe de ${u.username} réinitialisé`);toast(`Nouveau mot de passe : ${u.password}`);refresh()},
+ usms(i){const u=S.users.find(x=>x.id==i);if(!u.phone){toast('Ce compte n\'a pas de numéro. Ajoutez-en un avec « Modifier ».');return}log('sms',`Identifiants de ${u.username} envoyés au ${u.phone}`);toast(`Identifiants envoyés par SMS au ${u.phone}`)},
+ umac(i){const u=S.users.find(x=>x.id==i);u.mac='';log('admin',`MAC déliée pour ${u.username}`);toast('Adresse MAC déliée');refresh()},
+ ukick(i){const u=S.users.find(x=>x.id==i),n=S.sessions.filter(x=>x.user===u.username).length;S.sessions=S.sessions.filter(x=>x.user!==u.username);log('admin',`${n} session(s) de ${u.username} déconnectée(s)`);toast(`${u.username} déconnecté`);refresh()},
+ vbatchcancel(b){const l=S.vouchers.filter(v=>v.batch===b&&v.status==='disponible');if(!l.length){toast('Aucun ticket disponible à annuler dans ce lot.');return}confirmM('Annuler le lot '+b,`Annuler les ${l.length} tickets encore disponibles du lot <b class="mono">${esc(b)}</b> ? Les tickets déjà vendus ou utilisés ne changent pas.`,()=>{l.forEach(v=>v.status='annulé');log('admin',`Lot ${b} : ${l.length} tickets annulés`,'warn');toast(`${l.length} tickets annulés`)},'Annuler les tickets')},
+ tedit(i){const t=S.tickets.find(x=>x.id==i),u=S.users.find(x=>x.username===t.user);const hint={'Paiement non reçu':'Cherchez ce numéro dans Mobile Money : un paiement en attente peut être validé manuellement.','Connexion impossible':'Cherchez le code dans la recherche globale : il est peut-être déjà utilisé ou annulé.','Ticket refusé':'Le forfait limite peut-être le nombre d\'appareils connectés en même temps.','Débit lent':'Comparez avec la charge des bornes du site dans Points d\'accès.','Déconnexions fréquentes':'Vérifiez le délai d\'inactivité et l\'état de la borne du site.'}[t.cat]||'';
+  modal('Réclamation '+t.ref,`<p><b>${esc(t.cat)}</b> · <span class="mono">${esc(t.user)}</span> ${prT(t.prio)}</p><p class="muted" style="margin-top:4px">${esc(t.msg)}</p>${hint?`<p class="note" style="margin-top:10px">${hint}</p>`:''}${t.notes.length?`<div class="list" style="margin-top:10px">${t.notes.map(n=>`<div class="li"><div><small class="muted">${dt(n.t)} · ${esc(n.who)}</small><br>${esc(n.txt)}</div></div>`).join('')}</div>`:''}<div class="form" style="margin-top:12px"><label>Statut${sel('tstatus',[['ouvert','Ouverte'],['en cours','En cours'],['résolu','Résolue']],t.status==='ouvert'?'en cours':t.status)}</label><label>Assigné à${sel('tassignee',S.admins.filter(a=>a.role!=='Revendeur').map(a=>[a.login,a.name]),t.assignee||me().login)}</label><label class="full">Note interne<textarea class="inp" name="note" rows="2" placeholder="Ce qui a été vérifié ou fait"></textarea></label>${u?`<label class="chk full"><input type="checkbox" name="comp"> Offrir 1 jour de compensation à ${esc(u.username)}</label>`:''}</div>`,0,d=>{t.status=d.tstatus;t.assignee=d.tassignee;if(d.note.trim())t.notes.push({t:Date.now(),who:me().login,txt:d.note.trim()});if(d.comp&&u){u.expires=Math.max(u.expires,Date.now())+DAY;if(u.status==='expiré')u.status='actif';t.notes.push({t:Date.now(),who:me().login,txt:'1 jour de compensation offert.'})}t.resolvedAt=t.status==='résolu'?(t.resolvedAt||Date.now()):null;log('admin',`Réclamation ${t.ref} : ${t.status}${d.comp?' (+1 jour offert)':''}`);toast(`${t.ref} mise à jour`)})},
+ tadd(){modal('Nouvelle réclamation',`<div class="form"><label class="full">Client (nom d'utilisateur)<input class="inp mono" name="user" list="ulist" required autocomplete="off"><datalist id="ulist">${S.users.slice(0,300).map(u=>`<option value="${esc(u.username)}">`).join('')}</datalist></label><label>Problème${sel('tcat',['Paiement non reçu','Connexion impossible','Ticket refusé','Débit lent','Déconnexions fréquentes','Autre'].map(x=>[x,x]),'Connexion impossible')}</label><label>Priorité${sel('tprio',[['haute','Haute'],['normale','Normale'],['basse','Basse']],'normale')}</label><label class="full">Description<textarea class="inp" name="msg" rows="3" required></textarea></label></div>`,0,d=>{const un=d.user.trim(),u=S.users.find(x=>x.username===un),n=S.tickets.reduce((m,t)=>Math.max(m,+t.ref.slice(4)||0),1040)+1;S.tickets.unshift({id:id(),ref:'REC-'+n,user:un,phone:u?.phone||'',cat:d.tcat,prio:d.tprio,msg:d.msg,status:'ouvert',assignee:'',created:Date.now(),resolvedAt:null,notes:[]});log('admin',`Réclamation REC-${n} ouverte pour ${un}`);toast(`Réclamation REC-${n} créée`)},'Créer')},
+ pdvcopy(c){const ok=()=>toast('Code copié'),ko=()=>toast('Copie bloquée : notez le code affiché.');try{navigator.clipboard.writeText(c).then(ok,ko)}catch(e){ko()}},
+ pdvnew(){PDVRES=null;draw()},
+ pdvreq(){const R=pdvR(),d=distOf(R);modal('Demander une recharge',`<div class="form"><label class="full">Montant souhaité (FC)<input class="inp" type="number" name="a" min="1000" step="500" required value="20000"></label></div><p class="muted" style="margin-top:10px">La demande part chez ${esc(d?.name||'l\'opérateur')}. Votre solde est crédité dès qu'elle est validée.</p>`,0,f=>{S.topups.unshift({id:id(),res:R.id,amount:+f.a,date:Date.now(),status:'en attente'});log('admin',`${R.name} demande une recharge de ${fc(+f.a)}`);toast(`Demande envoyée à ${d?.name||'l\'opérateur'}`)},'Envoyer la demande')},
+ topok(i){const t=S.topups.find(x=>x.id==i),x=S.resellers.find(y=>y.id===t.res);if(!x){t.status='refusée';refresh();return}const d=distOf(x),src=d||S.op;if(t.amount>src.wallet){toast(`Portefeuille insuffisant : ${fc(src.wallet)} disponibles chez ${d?d.name:'l\'opérateur'}.`);return}src.wallet-=t.amount;x.balance+=t.amount;t.status='validée';log('admin',`Recharge de ${x.name} validée : +${fc(t.amount)}`);toast(`${x.name} crédité de ${fc(t.amount)}`);draw()},
+ topko(i){const t=S.topups.find(x=>x.id==i);t.status='refusée';log('admin',`Demande de recharge de ${fc(t.amount)} refusée`,'warn');toast('Demande refusée');draw()},
+ gsgo(k){hideGS();const gs=$('#gs');if(gs)gs.value='';const i=k.indexOf(':'),t=k.slice(0,i),v=k.slice(i+1);
+  if(t==='u')return openUser(v);
+  if(t==='v'){F.vq=v;F.vb='';F.vs='';F.sheet=false;return go('vouchers')}
+  if(t==='p'){F.pq=v;F.po='';F.ps='';return go('paiements')}
+  if(t==='s'){F.sq=v;F.sn='';return go('sessions')}
+  if(t==='n')return go('routeurs');
+  if(t==='r')return go('revendeurs');
+  if(t==='t'){F.ts='';go('support');return setTimeout(()=>A.tedit(v),0)}},
+ reset(){confirmM('Réinitialiser la démo','Effacer toutes vos modifications (comptes, tickets, paiements, réglages) et revenir aux données d\'exemple ?',()=>{SKIPSAVE=true;clearTimeout(svT);try{localStorage.removeItem(KEY)}catch(e){}setTimeout(()=>{try{location.reload()}catch(e){}},60);setTimeout(()=>toast('Rechargez la page pour terminer la réinitialisation.'),1500)},'Réinitialiser')},
+
+};
+document.addEventListener('click',e=>{if(!e.target.closest('.search'))hideGS();if(e.target.id==='scrim'){closeDrawer();return}const b=e.target.closest('[data-act]');if(!b||b.tagName==='INPUT')return;const k=b.dataset.act,f=A[k];if(!f)return;e.preventDefault();if(ACTPERM[k]!=null&&!can(ACTPERM[k])){toast(`Votre rôle (${S.roles[S.role]}) ne permet pas cette action.`);return}f(b.dataset.id,b)});
+document.addEventListener('keydown',e=>{const tg=e.target.tagName||'';if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(tg)&&$('#ov').hidden){e.preventDefault();$('#gs').focus();return}if(e.key==='Escape'&&$('#ov').hidden){if(!$('#gsr').hidden){hideGS();return}if(DU)closeDrawer()}},true);
+document.addEventListener('change',e=>{const b=e.target;if(b.id==='role'){setRole(b.value);return}if(b.id==='pdv'){F.pdv=b.value;PDVRES=null;draw();return}if(b.tagName==='INPUT'&&b.dataset&&b.dataset.act&&A[b.dataset.act]){const k=b.dataset.act;if(ACTPERM[k]!=null&&!can(ACTPERM[k])){b.checked=!b.checked;toast(`Votre rôle (${S.roles[S.role]}) ne permet pas cette action.`);return}A[k](b.dataset.id,b);return}if(['sn','us','up','vb','vs','po','ps','iq','ts'].includes(b.id)){F[b.id]=b.value;curList&&curList()}});
+document.addEventListener('input',e=>{const k=e.target.id;if(k==='gs'){gsearch(e.target.value);return}if(['sq','uq','vq','jq','cq','pq'].includes(k)){F[k]=e.target.value;curList&&curList()}});
+
+/* Portail : connexion par ticket et achat Mobile Money */
+document.addEventListener('submit',e=>{
+ if(e.target.id==='pcode'){e.preventDefault();const c=e.target.c.value.toUpperCase().replace(/[^A-Z0-9]/g,'');const v=S.vouchers.find(x=>x.code===c);
+  if(!v||!['disponible','vendu'].includes(v.status)){PMSG=`<p class="msg e">${!v?'Code introuvable. Vérifiez les caractères imprimés sur votre ticket.':v.status==='utilisé'?'Ce ticket a déjà été utilisé.':'Ce ticket a été annulé. Adressez-vous au point de vente.'}</p>`;draw();return}
+  const p=plan(v.plan),n=pick(onlineNas());v.status='utilisé';v.usedAt=Date.now();S.daily[13].v+=p.price;
+  S.users.unshift({id:id(),username:c,password:c,plan:p.id,phone:'',mac:mac(),created:Date.now(),expires:Date.now()+p.validity*DAY,status:'actif',used:0,source:'Voucher'});
+  S.sessions.unshift({id:id(),user:c,ip:n.ip.replace(/\.1$/,'.')+(30+Math.floor(Math.random()*200)),mac:S.users[0].mac,nas:n.name,start:Date.now(),inMB:0.1,outMB:0.05});
+  log('radius',`Access-Accept ${c} sur ${n.name} (${p.name})`);
+  PRES=`<p class="msg s">Vous êtes connecté.</p><b style="font-family:var(--f-display);font-size:1.1rem">${esc(p.name)}</b><div style="font-size:.88rem;display:flex;flex-direction:column;gap:4px"><span>Temps : ${dur(p.duration)}</span><span>Volume : ${vol(p.quota)}</span><span>Débit : ${p.down/1024} Mbit/s</span><span>Valable jusqu'au ${dt(Date.now()+p.validity*DAY)}</span></div><p class="hint">La session apparaît maintenant dans Sessions actives (routeur ${esc(n.name)}).</p><button type="button" class="go" data-act="preset">Nouvel essai</button>`;draw();$('#nav').innerHTML=navHTML()}
+ if(e.target.id==='pdvsell'){e.preventDefault();if(!can(5)){toast(`Votre rôle (${S.roles[S.role]}) ne permet pas de vendre.`);return}const R=pdvR(),pid=+e.target.plan.value,ph=e.target.phone.value.trim(),v=S.vouchers.find(x=>x.reseller===R.id&&x.plan===pid&&x.status==='disponible');if(!v){toast('Plus de stock pour ce forfait.');return}if(ph&&ph.replace(/\D/g,'').length<9){toast('Numéro incomplet : saisissez les 9 chiffres après +243, ou laissez le champ vide.');return}const p=plan(pid);v.status='vendu';v.soldAt=Date.now();v.soldPhone=ph;R.sold++;log('admin',`${R.name} a vendu le ticket ${v.code} (${p.name})`);if(ph)log('sms',`Code ${v.code} envoyé au ${ph}`);PDVRES={code:v.code,price:p.price,plan:p.name,info:`${dur(p.duration)} · ${vol(p.quota)} · valable ${p.validity} j`,phone:ph};draw();return}
+ if(e.target.id==='psms1'){e.preventDefault();const ph=e.target.phone.value.trim();if(ph.replace(/\D/g,'').length<9){PMSG='<p class="msg e">Numéro incomplet. Saisissez les 9 chiffres après +243.</p>';draw();return}SMSS={phone:ph,otp:String(Math.floor(100000+Math.random()*900000))};PMSG=`<p class="msg s">Code envoyé au ${esc(ph)}. Il expire dans 5 minutes.</p>`;log('sms',`Code de connexion envoyé au ${ph}`);draw();return}
+ if(e.target.id==='psms2'){e.preventDefault();if(e.target.otp.value.trim()!==SMSS.otp){PMSG='<p class="msg e">Code incorrect. Vérifiez le SMS reçu ou demandez un nouveau code.</p>';draw();return}
+  const dg=SMSS.phone.replace(/\D/g,'').slice(-9),u=S.users.find(x=>x.phone&&x.phone.replace(/\D/g,'').slice(-9)===dg&&x.status==='actif');SMSS=null;PMSG='';
+  if(u){const n=sessFor(u.username,u.mac);log('radius',`Access-Accept ${u.username} par code SMS sur ${n.name}`);PRES=`<p class="msg s">Numéro vérifié. Bienvenue.</p><div style="font-size:.9rem;display:flex;flex-direction:column;gap:4px"><span>Compte : <b class="mono">${esc(u.username)}</b></span><span>Forfait : ${esc(plan(u.plan).name)}</span><span>Valable jusqu'au ${dt(u.expires)}</span></div><button type="button" class="go" data-act="preset">Nouvel essai</button>`}
+  else PRES=`<p class="msg s">Numéro vérifié.</p><p style="font-size:.9rem">Aucun forfait actif sur ce numéro. Achetez un forfait ou utilisez l'accès gratuit.</p><button type="button" class="go" data-act="ptab" data-id="momo">Acheter un forfait</button>`;
+  draw();return}
+ if(e.target.id==='pmomo'){e.preventDefault();const d=Object.fromEntries(new FormData(e.target)),p=plan(d.plan);
+  if(d.phone.replace(/\D/g,'').length<9){PMSG='<p class="msg e">Numéro incomplet. Saisissez les 9 chiffres après +243.</p>';draw();return}
+  const pay={id:id(),ref:'PAY-'+(280000+S.payments.length),tx:d.op.slice(0,2).toUpperCase()+Math.floor(1e7+Math.random()*9e7),phone:d.phone,op:d.op,plan:p.id,amount:p.price,status:'en attente',date:Date.now()};S.payments.unshift(pay);
+  PRES=`<p class="msg s" style="background:#f9eac6;color:#6b4500">Demande envoyée à ${esc(d.phone)}. Confirmez avec votre code PIN ${esc(d.op)}…</p>`;draw();
+  setTimeout(()=>{pay.status='réussi';S.daily[13].m+=p.price;const un=d.phone.replace(/\D/g,'').slice(-9),pw=String(Math.floor(100000+Math.random()*900000));
+   S.users.unshift({id:id(),username:un,password:pw,plan:p.id,phone:d.phone,mac:'',created:Date.now(),expires:Date.now()+p.validity*DAY,status:'actif',used:0,source:'Mobile Money'});log('momo',`Paiement ${pay.tx} confirmé par ${d.op} (${fc(p.price)}), compte ${un} créé`);
+   PRES=`<p class="msg s">Paiement de ${fc(p.price)} reçu.</p><div style="font-size:.9rem;display:flex;flex-direction:column;gap:6px"><span>Identifiant : <b class="mono">${un}</b></span><span>Mot de passe : <b class="mono">${pw}</b></span><span>Forfait : ${esc(p.name)}</span></div><p class="hint">Ces identifiants sont aussi envoyés par SMS au ${esc(d.phone)}.</p><button type="button" class="go" data-act="preset">Nouvel essai</button>`;if(cur==='portail')draw();else $('#nav').innerHTML=navHTML()},1800)}
+});
+
+/* Compteurs en direct (Interim-Update simulé) */
+setInterval(()=>{S.sessions.forEach(s=>{s.inMB+=Math.random()*3;s.outMB+=Math.random()*.5});if(cur==='sessions'&&curList&&!document.activeElement?.closest?.('#list'))curList()},3000);
+
+try{const raw=localStorage.getItem(KEY);if(raw){let mx=0;const o=JSON.parse(raw,(k,v)=>{if(k==='id'&&typeof v==='number'&&v>mx)mx=v;return v});if(o&&o.S&&Date.now()-o.at<12*3600e3){Object.assign(S,o.S);uid=Math.max(uid,mx+1)}}}catch(e){}
+topbar();
+new MutationObserver(()=>{cancelAnimationFrame(enR);enR=requestAnimationFrame(enhance)}).observe($('#main'),{childList:true,subtree:true});
+addEventListener('hashchange',route);route();
+</script>
+
+</body>
+</html>

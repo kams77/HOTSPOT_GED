@@ -295,7 +295,8 @@ def generate_batch(plan, qty, actor_user, length=8, reseller=None):
 
 def redeem_voucher(code, mac=''):
     code = re.sub(r'[^A-Za-z0-9]', '', code or '').upper()
-    v = Voucher.objects.select_for_update().select_related('plan', 'subscriber').filter(code=code).first()
+    v = (Voucher.objects.select_for_update(of=('self',)).select_related('plan', 'subscriber')
+         .filter(code=code).first())
     if v is None:
         raise ServiceError('Code introuvable. Vérifiez les caractères imprimés sur votre ticket.')
     if v.status == Voucher.Status.CANCELLED:

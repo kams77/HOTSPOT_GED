@@ -20,8 +20,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U radius" --health-interval 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -64,7 +64,7 @@ jobs:
     name: Pile complète (Docker + FreeRADIUS)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Préparer .env
         run: |
           cp .env.example .env
@@ -129,7 +129,11 @@ jobs:
           docker compose logs --no-color worker > worker.log 2>&1 || true
           sh .github/report.sh "compose-ps" ps.log 30
           sh .github/report.sh "web" web.log 80
-          sh .github/report.sh "radius" radius.log 120
+          sed -n '/Received Access-Request/,$p' radius.log | sed 's/^radius-1  | //' | grep -v '^\s*$' > radius-req.log || true
+          head -n 150 radius-req.log > radius-req-1.log; sed -n '151,300p' radius-req.log > radius-req-2.log
+          sh .github/report.sh "radius-start" radius.log 25
+          sh .github/report.sh "radius-requete-1" radius-req-1.log 150
+          sh .github/report.sh "radius-requete-2" radius-req-2.log 150
           sh .github/report.sh "worker" worker.log 40
           for f in accept.log reject.log acct.log voucher.log; do sh .github/report.sh "$f" $f 40; done
       - name: Arrêt

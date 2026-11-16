@@ -14,7 +14,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import roles, services
-from core.models import Distributor, Plan, Reseller, SiteSettings, Subscriber
+from core.models import Ad, Distributor, Plan, Policy, Reseller, SiteSettings, Subscriber
 from radius.models import Nas
 
 PLANS = [
@@ -26,6 +26,13 @@ PLANS = [
     dict(name='Mois illimité', price=25000, duration=43200, validity=30, quota=0, down=8192, up=4096, shared=3),
     dict(name='Accès gratuit sponsorisé', price=0, duration=30, validity=1, quota=100, down=1024, up=512, shared=1,
          is_free=True),
+]
+
+
+POLICIES = [
+    ('Plage horaire du forfait Nuit', 'Nuit 22h–6h', 'Connexion refusée hors de 22h–6h (attribut Login-Time).'),
+    ('Isolation des clients', 'Tous les routeurs', 'Les appareils d\'un même hotspot ne se voient pas entre eux (à activer sur le routeur).'),
+    ('Limite de l\'accès gratuit', 'Accès gratuit sponsorisé', '1 Mbit/s, 30 min et 100 Mo par jour et par appareil (MAC).'),
 ]
 
 
@@ -59,6 +66,10 @@ class Command(BaseCommand):
             for p in Plan.objects.all():
                 services.sync_plan(p)
 
+        if not Policy.objects.exists():
+            for name, scope, rule in POLICIES:
+                Policy.objects.create(name=name, scope=scope, rule=rule)
+
         if demo:
             self.demo(User)
         self.stdout.write(self.style.SUCCESS('Installation prête.'))
@@ -84,6 +95,9 @@ class Command(BaseCommand):
             if not User.objects.filter(username=login).exists():
                 u = User.objects.create_user(login, '', f'{login}12345', is_staff=True)
                 u.groups.add(Group.objects.get(name=role))
+        if not Ad.objects.exists():
+            Ad.objects.create(name='Forfait Semaine à 7 500 FC', sponsor='HotSpot Pro (interne)', kind='Image',
+                              slot='Accès gratuit (avant)', ends_at=timezone.now() + timedelta(days=30))
         express = Plan.objects.filter(name='Express 1 h').first() or Plan.objects.first()
         if not r.vouchers.exists():
             services.generate_batch(express, 20, None, 8, r)

@@ -14,7 +14,10 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from core import services, snapshot
-from core.models import Payment, Plan, SiteSettings
+from django.db.models import F, Q
+from django.utils import timezone
+
+from core.models import Ad, Payment, Plan, SiteSettings
 from core.momo import OPERATORS
 from core.services import ServiceError
 
@@ -33,6 +36,14 @@ def methods():
     return {m['k']: m['on'] for m in snapshot.login_methods(SiteSettings.get())}
 
 
+def pick_ad(*slots):
+    ad = (Ad.objects.filter(active=True, slot__in=slots)
+          .filter(Q(ends_at__isnull=True) | Q(ends_at__gt=timezone.now())).order_by('?').first())
+    if ad:
+        Ad.objects.filter(pk=ad.pk).update(impressions=F('impressions') + 1)
+    return ad
+
+
 def base_context(request, **extra):
     s = SiteSettings.get()
     return {
@@ -42,6 +53,7 @@ def base_context(request, **extra):
         'operators': OPERATORS,
         'on': methods(),
         'tab': request.GET.get('tab') or extra.pop('tab', None) or 'code',
+        'ad': None,
         **extra,
     }
 
@@ -62,7 +74,8 @@ def login_form(request, sub):
 
 def success(request, sub, message='Vous êtes connecté.'):
     return render(request, 'portal/index.html', base_context(
-        request, mode='success', sub=sub, message=message, login=login_form(request, sub)))
+        request, mode='success', sub=sub, message=message, login=login_form(request, sub),
+        ad=pick_ad('Après connexion')))
 
 
 def error(request, message, tab):
@@ -76,7 +89,12 @@ def index(request):
         if params.get('redirurl') and not params.get('dst'):
             params['dst'] = params['redirurl']
         request.session['portal'] = params
-    return render(request, 'portal/index.html', base_context(request))
+    ctx = base_context(request)
+    if ctx['tab'] == 'free':
+        ctx['ad'] = pick_ad('Accès gratuit (avant)')
+    elif ctx['tab'] == 'code':
+        ctx['ad'] = pick_ad('Avant connexion')
+    return render(request, 'portal/index.html', ctx)
 
 
 @require_POST

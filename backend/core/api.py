@@ -18,9 +18,9 @@ from django.views.decorators.http import require_POST
 
 from radius.models import Nas, RadAcct
 
-from . import momo, roles, services, snapshot
-from .models import (Batch, Complaint, Distributor, Payment, Plan, Reseller, SiteSettings, Subscriber,
-                     TopupRequest, Voucher)
+from . import momo, roles, services, sms, snapshot
+from .models import (AccessPoint, Ad, Batch, Campaign, Complaint, Distributor, Payment, Plan, Policy, Reseller,
+                     SiteSettings, Subscriber, TopupRequest, Voucher)
 from .services import ServiceError, actor_of, audit, to_int
 
 T_STATUS_IN = {v: k for k, v in snapshot.T_STATUS.items()}
@@ -506,6 +506,105 @@ def admin_toggle(request, data, pk):
     u.save(update_fields=['is_active'])
     audit(me(request), f'Administrateur {u.get_username()} {"réactivé" if u.is_active else "désactivé"}', 'warn')
     return {'message': 'Compte mis à jour'}
+
+
+# ---------------------------------------------------------------- publicité et campagnes
+@endpoint(roles.MARKETING)
+def ad_create(request, data):
+    name = str(data.get('name', '')).strip()
+    if not name:
+        raise ServiceError("Donnez un titre à l'annonce.")
+    days = to_int(data.get('days', 14), 'Durée', 1, 365)
+    Ad.objects.create(name=name[:120], sponsor=str(data.get('sponsor', ''))[:120], kind=str(data.get('type', 'Image'))[:30],
+                      slot=str(data.get('slot', 'Avant connexion'))[:60], ends_at=timezone.now() + timedelta(days=days))
+    audit(me(request), f'Publicité « {name} » créée')
+    return {'message': 'Publicité en ligne'}
+
+
+@endpoint(roles.MARKETING)
+def ad_toggle(request, data, pk):
+    ad = Ad.objects.get(pk=pk)
+    ad.active = bool(data.get('on'))
+    ad.save(update_fields=['active'])
+    audit(me(request), f'Publicité « {ad.name} » {"activée" if ad.active else "suspendue"}')
+    return {'message': 'Publicité activée' if ad.active else 'Publicité suspendue'}
+
+
+SEGMENTS = {
+    'exp': 'Forfait expirant dans 24 h',
+    'old': 'Comptes expirés',
+    'momo': 'Clients Mobile Money',
+    'all': 'Tous les clients avec téléphone',
+}
+
+
+def segment_phones(key):
+    qs = Subscriber.objects.exclude(phone='')
+    now = timezone.now()
+    if key == 'exp':
+        qs = qs.filter(status=Subscriber.Status.ACTIVE, expires_at__lt=now + timedelta(days=1))
+    elif key == 'old':
+        qs = qs.filter(status=Subscriber.Status.EXPIRED)
+    elif key == 'momo':
+        qs = qs.filter(source=Subscriber.Source.MOMO)
+    return sorted(set(qs.values_list('phone', flat=True)))[:5000]
+
+
+@endpoint(roles.MARKETING)
+def campaign_create(request, data):
+    key = data.get('seg')
+    if key not in SEGMENTS:
+        raise ServiceError('Choisissez une cible.')
+    msg = str(data.get('msg', '')).strip()
+    if not msg or len(msg) > 160:
+        raise ServiceError('Le message doit faire entre 1 et 160 caractères.')
+    phones = segment_phones(key)
+    for phone in phones:
+        sms.queue(phone, msg)
+    Campaign.objects.create(name=str(data.get('name', 'Campagne'))[:120], segment=SEGMENTS[key], message=msg, sent=len(phones))
+    audit(me(request), f'Campagne SMS envoyée à {len(phones)} numéro(s) : {SEGMENTS[key]}')
+    return {'message': f'{len(phones)} SMS envoyés'}
+
+
+# ---------------------------------------------------------------- politiques et filtrage
+@endpoint(roles.NAS)
+def policy_create(request, data):
+    name = str(data.get('name', '')).strip()
+    rule = str(data.get('rule', '')).strip()
+    if not name or not rule:
+        raise ServiceError('Indiquez le nom et l’effet de la règle.')
+    Policy.objects.create(name=name[:120], scope=str(data.get('scope', 'Tous les forfaits'))[:120], rule=rule)
+    audit(me(request), f'Règle « {name} » créée')
+    return {'message': 'Règle créée'}
+
+
+@endpoint(roles.NAS)
+def policy_toggle(request, data, pk):
+    p = Policy.objects.get(pk=pk)
+    p.active = bool(data.get('on'))
+    p.save(update_fields=['active'])
+    audit(me(request), f'Règle « {p.name} » {"activée" if p.active else "désactivée"}')
+    return {'message': 'Règle activée' if p.active else 'Règle désactivée'}
+
+
+@endpoint(roles.NAS)
+def filter_toggle(request, data):
+    i = to_int(data.get('i'), 'Catégorie', 0, len(snapshot.WEB_FILTERS) - 1)
+    name = snapshot.WEB_FILTERS[i]
+    s = SiteSettings.get()
+    current = dict(s.web_filters or {})
+    current[name] = bool(data.get('on'))
+    s.web_filters = current
+    s.save(update_fields=['web_filters'])
+    audit(me(request), f'Filtrage « {name} » {"activé" if current[name] else "désactivé"}')
+    return {'message': 'Filtrage mis à jour'}
+
+
+@endpoint(roles.NAS)
+def ap_reboot(request, data, pk):
+    ap = AccessPoint.objects.get(pk=pk)
+    audit(me(request), f'Redémarrage demandé pour {ap.name}')
+    return {'message': f'Demande notée. Redémarrez {ap.name} depuis le contrôleur du constructeur (UniFi, Omada…).'}
 
 
 # ---------------------------------------------------------------- webhook Mobile Money

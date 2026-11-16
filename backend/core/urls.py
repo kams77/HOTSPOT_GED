@@ -42,5 +42,12 @@ urlpatterns = [
     path('settings/', api.settings_update),
     path('perms/', api.perms_update),
     path('admins/<int:pk>/toggle/', api.admin_toggle),
+    path('ads/create/', api.ad_create),
+    path('ads/<int:pk>/toggle/', api.ad_toggle),
+    path('campaigns/create/', api.campaign_create),
+    path('policies/create/', api.policy_create),
+    path('policies/<int:pk>/toggle/', api.policy_toggle),
+    path('filters/', api.filter_toggle),
+    path('aps/<int:pk>/reboot/', api.ap_reboot),
     path('momo/webhook/', api.momo_webhook),
 ]

@@ -112,3 +112,61 @@ class ApiTests(TestCase):
         self.assertEqual(expire_subscribers(), 1)
         sub.refresh_from_db()
         self.assertEqual(sub.status, Subscriber.Status.EXPIRED)
+
+
+class ModulesAndPortalTests(TestCase):
+    def setUp(self):
+        for name in roles.ROLES:
+            Group.objects.get_or_create(name=name)
+        self.admin = get_user_model().objects.create_superuser('admin', '', 'admin12345')
+        self.plan = Plan.objects.create(name='Express', price=500, duration=60)
+        self.client.force_login(self.admin)
+
+    def post(self, url, data):
+        return self.client.post(url, json.dumps(data), content_type='application/json')
+
+    def test_ads_campaigns_filters_policies(self):
+        from .models import Ad, Campaign, Policy, SiteSettings
+        self.assertEqual(self.post('/api/ads/create/', {'name': 'Promo', 'sponsor': 'X', 'type': 'Image',
+                                                        'slot': 'Avant connexion', 'days': 7}).status_code, 200)
+        ad = Ad.objects.get(name='Promo')
+        self.post(f'/api/ads/{ad.id}/toggle/', {'on': False})
+        ad.refresh_from_db()
+        self.assertFalse(ad.active)
+        services.create_subscriber(self.plan, Subscriber.Source.MANUAL, 't', username='eve', phone='+243 81 111 2222')
+        r = self.post('/api/campaigns/create/', {'name': 'C', 'seg': 'all', 'msg': 'Bonjour'})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(Campaign.objects.get().sent, 1)
+        self.post('/api/filters/', {'i': 4, 'on': True})
+        self.assertTrue(SiteSettings.get().web_filters['Réseaux sociaux'])
+        self.post('/api/policies/create/', {'name': 'R', 'scope': 'Tous', 'rule': 'Effet'})
+        self.assertTrue(Policy.objects.filter(name='R').exists())
+        state = self.client.get('/api/console/state/').json()
+        self.assertTrue(state['ads'] and state['campaigns'] and state['filters'])
+
+    def test_portal_voucher_flow(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/portal/?preset=mikrotik&login_url=http://10.5.50.1/login&mac=AA:BB:CC:DD:EE:FF').status_code, 200)
+        r = self.reseller = Reseller.objects.create(name='K', balance=10_000)
+        services.generate_batch(self.plan, 2, None, 8, r)
+        code = Voucher.objects.first().code
+        resp = self.client.post('/portal/voucher/', {'code': code})
+        self.assertContains(resp, code)
+        self.assertContains(resp, 'action="http://10.5.50.1/login"')
+        bad = self.client.post('/portal/voucher/', {'code': 'ZZZZZZZZ'})
+        self.assertEqual(bad.status_code, 400)
+
+    def test_webhook_signature(self):
+        import hashlib
+        import hmac
+        from django.test import override_settings
+        p = Payment.objects.create(ref='PAY-W', phone='+243 81 234 5678', operator='M-Pesa', plan=self.plan, amount=500)
+        body = json.dumps({'reference': 'PAY-W', 'status': 'SUCCESS', 'transaction_id': 'T1'}).encode()
+        with override_settings(MOMO_WEBHOOK_SECRET='s3cret'):
+            self.assertEqual(self.client.post('/api/momo/webhook/', body, content_type='application/json',
+                                              HTTP_X_SIGNATURE='bad').status_code, 403)
+            sig = hmac.new(b's3cret', body, hashlib.sha256).hexdigest()
+            r = self.client.post('/api/momo/webhook/', body, content_type='application/json', HTTP_X_SIGNATURE=sig)
+            self.assertEqual(r.status_code, 200, r.content)
+        p.refresh_from_db()
+        self.assertEqual(p.status, Payment.Status.SUCCESS)

@@ -19,6 +19,7 @@ class SiteSettings(models.Model):
     aggregator = models.CharField('agrégateur Mobile Money', max_length=120, blank=True, default='')
     login_methods = models.JSONField('méthodes de connexion', default=dict, blank=True)
     perms = models.JSONField('matrice des permissions', default=list, blank=True)
+    web_filters = models.JSONField('catégories de sites bloquées', default=dict, blank=True)
 
     class Meta:
         verbose_name = 'paramètres'

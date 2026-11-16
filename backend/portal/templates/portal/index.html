@@ -29,12 +29,17 @@ button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:8
 dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:.95rem}
 dt{color:var(--muted)} dd{margin:0;font-weight:600}
 .mono{font-family:ui-monospace,Menlo,monospace}
+.ad{border-radius:12px;padding:22px 16px;text-align:center;background:linear-gradient(135deg,#0d6e66,#164f7a);color:#fff;display:flex;flex-direction:column;gap:4px}
+.ad small{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;opacity:.8}
+.ad b{font-size:1.15rem}
+.ad img{max-width:100%;border-radius:8px}
 </style>
 </head>
 <body>
 <div class="top"><b>{{ s.portal_title }}</b><span>{{ s.portal_msg }}</span></div>
 <main>
 {% if error %}<p class="msg err">{{ error }}</p>{% endif %}
+{% if ad %}<div class="ad"><small>Publicité · {{ ad.sponsor }}</small>{% if ad.media_url %}<img src="{{ ad.media_url }}" alt="{{ ad.name }}">{% endif %}<b>{{ ad.name }}</b></div>{% endif %}
 
 {% if mode == 'success' %}
   <div class="card">

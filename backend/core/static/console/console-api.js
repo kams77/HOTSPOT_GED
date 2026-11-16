@@ -114,6 +114,14 @@
     return post('/settings/', { org: g('s_org'), currency: g('s_cur'), coa: g('s_coa'), interim: g('s_int'),
       idle: g('s_idle'), aggregator: g('s_agg') });
   });
+  viaModal('adadd', function (d) { delete d.f; return post('/ads/create/', d); });
+  viaModal('camadd', function (d) { return post('/campaigns/create/', d); });
+  viaModal('poladd', function (d) { return post('/policies/create/', d); });
+  direct('adtoggle', function (id, el) { return post('/ads/' + id + '/toggle/', { on: el.checked }); });
+  direct('poltoggle', function (id, el) { return post('/policies/' + id + '/toggle/', { on: el.checked }); });
+  direct('filt', function (i, el) { return post('/filters/', { i: +i, on: el.checked }); });
+  direct('apreboot', function (id) { return post('/aps/' + id + '/reboot/'); });
+  A.rogueok = function () { toast('La détection des réseaux suspects demande l’intégration du contrôleur Wi-Fi.'); };
   A.aadd = function () { location.href = '/admin/auth/user/add/'; };
   A.reset = function () { load().then(function () { draw(); toast('Données actualisées'); }); };
 
@@ -135,15 +143,16 @@
     return '<p class="note">Le vrai portail captif est à l\'adresse <a href="/portal/" target="_blank" rel="noopener">/portal/</a>. ' +
       'Ouvrez-le pour tester un ticket ou un paiement réel. L\'aperçu ci-dessous ne modifie pas le serveur.</p>' + portail();
   };
-  ['analytique', 'points-acces', 'marketing', 'politiques'].forEach(function (k) {
+  var NOTES = {
+    analytique: 'Fréquentation et heures calculées depuis la comptabilité RADIUS. Types d\'appareils : données d\'exemple.',
+    'points-acces': 'Bornes déclarées dans l\'administration (Points d\'accès). Clients comptés depuis les sessions RADIUS ; charge, canaux et réseaux suspects demandent l\'intégration du contrôleur du constructeur.',
+    marketing: 'Publicités et campagnes enregistrées sur le serveur. Les campagnes envoient de vrais SMS selon le fournisseur configuré. Enquêtes : à venir.',
+    politiques: 'Règles et catégories enregistrées sur le serveur. Appliquez-les aussi sur vos routeurs (DNS filtrant, QoS) : le serveur RADIUS ne filtre pas le trafic lui-même.'
+  };
+  Object.keys(NOTES).forEach(function (k) {
     var v = VIEWS[k];
     if (!v) return;
-    VIEWS[k] = function () {
-      var note = k === 'analytique'
-        ? 'Fréquentation et heures calculées depuis la comptabilité RADIUS. Types d\'appareils : données d\'exemple.'
-        : 'Module en démonstration : ces données ne sont pas encore enregistrées sur le serveur (voir l\'administration Django).';
-      return '<p class="note">' + note + '</p>' + v();
-    };
+    VIEWS[k] = function () { return '<p class="note">' + NOTES[k] + '</p>' + v(); };
   });
 
   // Barre du haut : session réelle

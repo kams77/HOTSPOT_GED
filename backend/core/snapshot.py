@@ -9,8 +9,8 @@ from django.utils import timezone
 from radius.models import Nas, RadAcct
 
 from . import roles
-from .models import (AuditLog, Complaint, Distributor, Payment, Plan, Reseller, SiteSettings, Subscriber,
-                     TopupRequest, Voucher)
+from .models import (AccessPoint, Ad, AuditLog, Campaign, Complaint, Distributor, Payment, Plan, Policy, Reseller,
+                     SiteSettings, Subscriber, TopupRequest, Voucher)
 
 MB = 1024 * 1024
 SUB_STATUS = {'active': 'actif', 'suspended': 'suspendu', 'expired': 'expiré'}
@@ -19,6 +19,9 @@ P_STATUS = {'success': 'réussi', 'pending': 'en attente', 'failed': 'échoué'}
 T_STATUS = {'open': 'ouvert', 'in_progress': 'en cours', 'resolved': 'résolu'}
 T_PRIO = {'high': 'haute', 'normal': 'normale', 'low': 'basse'}
 TOP_STATUS = {'pending': 'en attente', 'approved': 'validée', 'rejected': 'refusée'}
+WEB_FILTERS = ['Contenus pour adultes', 'Logiciels malveillants et hameçonnage', 'Jeux d\'argent et paris',
+               'Pair-à-pair (BitTorrent)', 'Réseaux sociaux', 'Streaming vidéo HD']
+FILTER_DEFAULTS = {0: True, 1: True, 2: True, 3: True}
 LOGIN_DEFAULTS = [
     ('voucher', 'Ticket / voucher', 'Code imprimé vendu par les revendeurs.', True),
     ('momo', 'Achat Mobile Money', 'M-Pesa, Airtel Money et Orange Money depuis le portail.', True),
@@ -37,6 +40,11 @@ def ms(dt):
 def login_methods(s):
     saved = s.login_methods if isinstance(s.login_methods, dict) else {}
     return [{'k': k, 'n': n, 'd': d, 'on': bool(saved.get(k, on))} for k, n, d, on in LOGIN_DEFAULTS]
+
+
+def web_filters(s):
+    saved = s.web_filters if isinstance(s.web_filters, dict) else {}
+    return [[name, bool(saved.get(name, FILTER_DEFAULTS.get(i, False)))] for i, name in enumerate(WEB_FILTERS)]
 
 
 def plan_json(p):
@@ -63,6 +71,18 @@ def settings_json(s):
     return {'org': s.org, 'currency': s.currency, 'tz': 'Africa/Kinshasa', 'auth': 1812, 'acct': 1813,
             'interim': s.interim, 'idle': s.idle, 'coa': s.coa_port, 'portalTitle': s.portal_title,
             'portalMsg': s.portal_msg, 'aggregator': s.aggregator, 'callback': '/api/momo/webhook/'}
+
+
+def aps_json(nas_list, sessions):
+    names = {n.id: n.shortname for n in nas_list}
+    out = []
+    for ap in AccessPoint.objects.all():
+        key = ap.mac.replace(':', '').replace('-', '').upper()
+        clients = sum(1 for x in sessions if key and key in (x.get('called') or '')) if key else 0
+        out.append({'id': ap.id, 'name': ap.name, 'nas': names.get(ap.nas_id, '—'), 'model': ap.model, 'mac': ap.mac,
+                    'ch': '—', 'clients': clients, 'util': 0, 'fw': ap.firmware or '—', 'up': ap.online,
+                    'uptime': 0})
+    return out
 
 
 def build(user):
@@ -102,6 +122,7 @@ def build(user):
         n = nas_by_ip.get(str(a.nasipaddress))
         sessions.append({'id': a.radacctid, 'user': a.username or '', 'ip': a.framedipaddress or '',
                          'mac': a.callingstationid or '', 'nas': n.shortname if n else str(a.nasipaddress),
+                         'called': (a.calledstationid or '').replace(':', '').replace('-', '').upper(),
                          'start': ms(a.acctstarttime or now), 'inMB': (a.acctoutputoctets or 0) / MB,
                          'outMB': (a.acctinputoctets or 0) / MB})
 
@@ -185,7 +206,16 @@ def build(user):
         'hours': hours,
         'cdr': cdr,
         'weblog': [],
-        'aps': [],
+        'aps': aps_json(nas_list, sessions),
         'rogue': [],
+        'ads': [{'id': a.id, 'name': a.name, 'sponsor': a.sponsor, 'type': a.kind, 'slot': a.slot,
+                 'imp': a.impressions, 'clk': a.clicks, 'on': a.active, 'until': ms(a.ends_at) or ms(now + timedelta(days=3650))}
+                for a in Ad.objects.all()],
+        'campaigns': [{'id': c.id, 'name': c.name, 'seg': c.segment, 'ch': 'SMS', 'sent': c.sent, 'conv': 0,
+                       'date': ms(c.created), 'st': 'Envoyée'} for c in Campaign.objects.all()[:100]],
+        'surveys': [],
+        'policies': [{'id': p.id, 'name': p.name, 'scope': p.scope, 'rule': p.rule, 'on': p.active}
+                     for p in Policy.objects.all()],
+        'filters': web_filters(s),
     })
     return base

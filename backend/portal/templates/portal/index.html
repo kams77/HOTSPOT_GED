@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ s.portal_title }}</title>
+<style>
+:root{--bg:#f2f6f5;--card:#fff;--fg:#14232a;--muted:#5a6b73;--line:#c9d6d4;--accent:#0d6e66;--soft:#e2ebe9;--ok:#1d6332;--okbg:#dbeee1;--bad:#9a1f18;--badbg:#f7d9d6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.top{background:var(--accent);color:#fff;padding:26px 18px 22px}
+.top b{display:block;font-size:1.35rem}
+.top span{opacity:.85;font-size:.9rem}
+main{max-width:440px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:14px}
+.tabs{display:flex;background:var(--soft);border-radius:10px;padding:3px;gap:2px;overflow-x:auto}
+.tabs a{flex:1;text-align:center;padding:9px 6px;border-radius:8px;color:#3c5058;text-decoration:none;font-weight:600;font-size:.88rem;white-space:nowrap}
+.tabs a.on{background:#fff;color:var(--accent)}
+form,.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+label{display:flex;flex-direction:column;gap:5px;font-size:.82rem;font-weight:600;color:#3c5058}
+input,select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:11px;background:#fff;color:var(--fg)}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.code{font-family:ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase}
+button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:12px;font-weight:600;cursor:pointer}
+.ops{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ops label{flex-direction:row;align-items:center;justify-content:center;gap:5px;border:1px solid var(--line);border-radius:8px;padding:9px 4px;font-size:.8rem;cursor:pointer;background:#fff}
+.msg{padding:10px 12px;border-radius:8px;font-size:.9rem}
+.err{background:var(--badbg);color:var(--bad)} .okm{background:var(--okbg);color:var(--ok)}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:.95rem}
+dt{color:var(--muted)} dd{margin:0;font-weight:600}
+.mono{font-family:ui-monospace,Menlo,monospace}
+</style>
+</head>
+<body>
+<div class="top"><b>{{ s.portal_title }}</b><span>{{ s.portal_msg }}</span></div>
+<main>
+{% if error %}<p class="msg err">{{ error }}</p>{% endif %}
+
+{% if mode == 'success' %}
+  <div class="card">
+    <p class="msg okm">{{ message }}</p>
+    <dl>
+      <dt>Identifiant</dt><dd class="mono">{{ sub.username }}</dd>
+      <dt>Mot de passe</dt><dd class="mono">{{ sub.password }}</dd>
+      <dt>Forfait</dt><dd>{{ sub.plan.name }}</dd>
+      <dt>Valable jusqu'au</dt><dd>{{ sub.expires_at|date:"d/m/Y H:i" }}</dd>
+    </dl>
+    {% if login %}
+      <form id="rl" method="post" action="{{ login.url }}" style="padding:0;border:0">
+        {% for k, v in login.fields %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+        <button>Accéder à Internet</button>
+      </form>
+      <p class="hint">Connexion automatique dans quelques secondes…</p>
+      <script>setTimeout(function(){document.getElementById('rl').submit()},1500)</script>
+    {% else %}
+      <p class="hint">Notez ces identifiants : ils servent aussi pour vous reconnecter.</p>
+    {% endif %}
+  </div>
+
+{% elif mode == 'wait' %}
+  <div class="card">
+    <p class="msg" style="background:#f9eac6;color:#6b4500">Demande envoyée au {{ payment.phone }}. Confirmez avec votre code PIN {{ payment.operator }}.</p>
+    <p class="hint">Montant : {{ payment.amount }} FC · {{ payment.plan.name }}. Cette page se met à jour toute seule.</p>
+  </div>
+  <script>
+  (function poll(){fetch('{% url "portal:momo_status" payment.ref %}',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(j.status==='success'||j.status==='failed'){location.reload()}else{setTimeout(poll,3000)}}).catch(function(){setTimeout(poll,5000)})})();
+  </script>
+
+{% elif mode == 'otp' %}
+  <form method="post" action="{% url 'portal:sms_verify' %}">{% csrf_token %}
+    <p class="hint">Code envoyé au {{ phone }}. Il expire dans 5 minutes.</p>
+    <label>Code reçu par SMS<input name="otp" inputmode="numeric" maxlength="6" required class="code" autofocus></label>
+    <button>Valider</button>
+  </form>
+
+{% else %}
+  <nav class="tabs">
+    {% if on.voucher %}<a href="?tab=code" class="{% if tab == 'code' %}on{% endif %}">Ticket</a>{% endif %}
+    {% if on.momo %}<a href="?tab=momo" class="{% if tab == 'momo' %}on{% endif %}">Acheter</a>{% endif %}
+    {% if on.sms %}<a href="?tab=sms" class="{% if tab == 'sms' %}on{% endif %}">SMS</a>{% endif %}
+    {% if on.free and free_plan %}<a href="?tab=free" class="{% if tab == 'free' %}on{% endif %}">Gratuit</a>{% endif %}
+    {% if on.user %}<a href="?tab=user" class="{% if tab == 'user' %}on{% endif %}">Compte</a>{% endif %}
+  </nav>
+
+  {% if tab == 'momo' and on.momo %}
+  <form method="post" action="{% url 'portal:momo' %}">{% csrf_token %}
+    <label>Forfait<select name="plan">{% for p in plans %}<option value="{{ p.id }}">{{ p.name }} — {{ p.price }} FC</option>{% endfor %}</select></label>
+    <div><span style="font-size:.82rem;font-weight:600;color:#3c5058">Opérateur</span>
+      <div class="ops">{% for o in operators %}<label><input type="radio" name="op" value="{{ o }}" {% if forloop.first %}checked{% endif %}>{{ o }}</label>{% endfor %}</div>
+    </div>
+    <label>Numéro Mobile Money<input name="phone" required inputmode="tel" placeholder="+243 81 234 5678"></label>
+    <button>Payer</button>
+    <p class="hint">Vous recevrez une demande de confirmation sur votre téléphone.</p>
+  </form>
+
+  {% elif tab == 'sms' and on.sms %}
+  <form method="post" action="{% url 'portal:sms_send' %}">{% csrf_token %}
+    <label>Votre numéro<input name="phone" required inputmode="tel" placeholder="+243 81 234 5678"></label>
+    <button>Recevoir un code</button>
+    <p class="hint">Pour retrouver un forfait déjà acheté avec ce numéro.</p>
+  </form>
+
+  {% elif tab == 'free' and on.free and free_plan %}
+  <form method="post" action="{% url 'portal:free' %}">{% csrf_token %}
+    <p style="margin:0">{{ free_plan.duration }} min et {{ free_plan.quota }} Mo gratuits par jour, offerts par nos partenaires.</p>
+    <button>Me connecter gratuitement</button>
+  </form>
+
+  {% elif tab == 'user' and on.user %}
+  <form method="post" action="{% url 'portal:login' %}">{% csrf_token %}
+    <label>Identifiant<input name="username" required autocomplete="username"></label>
+    <label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label>
+    <button>Se connecter</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{% url 'portal:voucher' %}">{% csrf_token %}
+    <label>Code du ticket<input name="code" class="code" placeholder="XXXX-XXXX" autocomplete="off" required></label>
+    <button>Se connecter</button>
+  </form>
+  {% endif %}
+{% endif %}
+</main>
+</body>
+</html>

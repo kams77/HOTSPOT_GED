@@ -375,7 +375,7 @@ const confirmM=(title,text,fn,label='Confirmer')=>modal(title,`<p>${text}</p>`,'
 VIEWS.tableau=()=>{
  const actU=S.users.filter(u=>u.status==='actif').length, today=S.daily[13], yest=S.daily[12];
  const unused=S.vouchers.filter(v=>v.status==='disponible').length, pend=S.payments.filter(p=>p.status==='en attente').length;
- const delta=Math.round(((today.v+today.m)/(yest.v+yest.m)-1)*100);
+ const yt=yest.v+yest.m,delta=yt?Math.round(((today.v+today.m)/yt-1)*100):0;
  const alerts=[];
  S.nas.filter(n=>!n.online).forEach(n=>alerts.push(['bad',`<b>${esc(n.name)}</b> ne répond plus depuis ${dur((Date.now()-n.lastSeen)/MIN)}. Vérifiez l'alimentation et le lien vers ${esc(n.ip)}.`,'routeurs']));
  S.resellers.filter(x=>x.balance<15000).forEach(x=>alerts.push(['warn',`Solde bas chez <b>${esc(x.name)}</b> : ${fc(x.balance)}.`,'revendeurs']));
@@ -475,7 +475,7 @@ VIEWS.paiements=()=>{curList=()=>{const o=F.po||'',st=F.ps||'';const list=S.paym
   $('#list').innerHTML=tbl(['Référence','Téléphone','Opérateur','Forfait','Montant','Statut','Date',''],list.map(p=>[`<span class="mono">${p.ref}</span><br><small class="muted mono">${p.tx}</small>`,`<span class="mono">${esc(p.phone)}</span>`,esc(p.op),esc(plan(p.plan).name),`<b class="num">${fc(p.amount)}</b>`,stPay(p.status),dt(p.date),p.status==='en attente'?`<div class="row-act"><button class="btn sm" data-act="payok" data-id="${p.id}">Valider</button><button class="btn sm danger" data-act="payko" data-id="${p.id}">Rejeter</button></div>`:'']))};
  const ok=S.payments.filter(p=>p.status==='réussi');
  return head('Mobile Money','Paiements reçus via M-Pesa, Airtel Money et Orange Money. Un paiement réussi crée automatiquement le compte et l\'envoie par SMS.',`<button class="btn" data-act="export" data-id="payments">Exporter (CSV)</button><button class="btn pri" data-act="paysim">Enregistrer un paiement</button>`)+
- `<div class="kpis">${Object.keys(OPS).map(o=>{const l=ok.filter(p=>p.op===o);return`<div class="kpi"><span>${o}</span><b>${l.reduce((a,p)=>a+p.amount,0).toLocaleString('fr-FR')}</b><small>FC · ${l.length} transaction(s)</small></div>`}).join('')}<div class="kpi"><span>Taux d'échec</span><b>${Math.round(S.payments.filter(p=>p.status==='échoué').length/S.payments.length*100)} %</b><small>sur ${S.payments.length} tentatives</small></div></div>
+ `<div class="kpis">${Object.keys(OPS).map(o=>{const l=ok.filter(p=>p.op===o);return`<div class="kpi"><span>${o}</span><b>${l.reduce((a,p)=>a+p.amount,0).toLocaleString('fr-FR')}</b><small>FC · ${l.length} transaction(s)</small></div>`}).join('')}<div class="kpi"><span>Taux d'échec</span><b>${Math.round(S.payments.filter(p=>p.status==='échoué').length/(S.payments.length||1)*100)} %</b><small>sur ${S.payments.length} tentatives</small></div></div>
  <section class="panel"><div class="filters"><input class="inp" type="search" id="pq" placeholder="Référence, transaction ou téléphone" value="${esc(F.pq||'')}">${sel('po',[['','Tous les opérateurs'],...Object.keys(OPS).map(o=>[o,o])],F.po||'')}${sel('ps',[['','Tous les statuts'],['réussi','Réussis'],['en attente','En attente'],['échoué','Échoués']],F.ps||'')}</div><div id="list"></div></section>`};
 
 /* ---------- Distribution : opérateur → distributeurs → revendeurs ---------- */
@@ -538,11 +538,11 @@ function freeConnect(){const p=S.plans.find(x=>x.free),m=mac(),un='gratuit-'+m.s
  PRES=`<p class="msg s">Vous êtes connecté gratuitement.</p><div style="font-size:.9rem;display:flex;flex-direction:column;gap:4px"><span>Temps : ${S.free.min} min</span><span>Volume : ${S.free.mb} Mo</span><span>Débit : 1 Mbit/s</span></div><p class="hint">Besoin de plus ? Forfaits à partir de ${fc(Math.min(...S.plans.filter(x=>!x.free).map(x=>x.price)))}.</p><button type="button" class="go" data-act="preset">Nouvel essai</button>`}
 
 /* ---------- Analytique visiteurs ---------- */
-function colChart(vals){const W=640,H=200,L=40,B=24,T=8,R=6,mx=Math.ceil(Math.max(...vals)/20)*20,bw=(W-L-R)/vals.length,y=v=>H-B-(v/mx)*(H-B-T);let g='';
+function colChart(vals){const W=640,H=200,L=40,B=24,T=8,R=6,mx=Math.max(20,Math.ceil(Math.max(...vals)/20)*20),bw=(W-L-R)/vals.length,y=v=>H-B-(v/mx)*(H-B-T);let g='';
  [0,mx/2,mx].forEach(v=>g+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`);
  vals.forEach((v,i)=>{const x=L+i*bw+bw*.15;g+=`<rect class="b1" x="${x}" y="${y(v)}" width="${bw*.7}" height="${y(0)-y(v)}" rx="2"><title>${i} h : ${v} connexions</title></rect>`;if(i%3===0)g+=`<text x="${x+bw*.35}" y="${H-7}" text-anchor="middle">${i}h</text>`});
  return`<div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Connexions moyennes par heure">${g}</svg></div>`}
-VIEWS.analytique=()=>{const tot=S.nas.reduce((a,n)=>a+n.visits,0),ret=Math.round(S.nas.reduce((a,n)=>a+n.visits*n.ret,0)/tot),mh=Math.max(...S.hours);
+VIEWS.analytique=()=>{const tot=S.nas.reduce((a,n)=>a+n.visits,0),ret=Math.round(S.nas.reduce((a,n)=>a+n.visits*n.ret,0)/(tot||1)),mh=Math.max(...S.hours);
  return head('Analytique visiteurs','Fréquentation des hotspots sur 30 jours, calculée à partir des sessions RADIUS et des adresses MAC.')+
  `<div class="kpis"><div class="kpi"><span>Visiteurs uniques</span><b>${tot.toLocaleString('fr-FR')}</b><small>appareils distincts</small></div><div class="kpi"><span>Visiteurs fidèles</span><b>${ret} %</b><small>venus au moins 2 fois</small></div><div class="kpi"><span>Durée moyenne</span><b>47 min</b><small>par session</small></div><div class="kpi"><span>Heure de pointe</span><b>${S.hours.indexOf(mh)} h</b><small>${mh} connexions en moyenne</small></div></div>
  <section class="panel"><h2>Connexions moyennes par heure</h2>${colChart(S.hours)}</section>
@@ -621,11 +621,11 @@ VIEWS.rapports=()=>{const ok=S.payments.filter(p=>p.status==='réussi');
  const byPlan=S.plans.map(p=>({n:p.name,v:S.vouchers.filter(v=>v.plan===p.id&&v.status==='utilisé').length*p.price+ok.filter(x=>x.plan===p.id).reduce((a,x)=>a+x.amount,0)})).sort((a,b)=>b.v-a.v);
  const mx=Math.max(...byPlan.map(x=>x.v),1);
  const tv=S.daily.reduce((a,d)=>a+d.v,0),tm=S.daily.reduce((a,d)=>a+d.m,0);
- const top=[...S.users].sort((a,b)=>b.used-a.used).slice(0,8),mu=top[0].used;
+ const top=[...S.users].sort((a,b)=>b.used-a.used).slice(0,8),mu=(top[0]&&top[0].used)||1;
  const nasL=S.nas.map(n=>({n:n.name,c:S.sessions.filter(s=>s.nas===n.name).length,t:S.sessions.filter(s=>s.nas===n.name).reduce((a,s)=>a+s.inMB+s.outMB,0)}));const mt=Math.max(...nasL.map(x=>x.t),1);
  const hb=(l,v,m,txt)=>`<div class="hbar"><span>${esc(l)}</span><div class="track"><i style="width:${v/m*100}%"></i></div><b class="num">${txt}</b></div>`;
  return head('Rapports','Synthèse des 14 derniers jours.',`<button class="btn" data-act="export" data-id="daily">Exporter les recettes (CSV)</button>`)+
- `<div class="kpis"><div class="kpi"><span>Recettes totales</span><b>${(tv+tm).toLocaleString('fr-FR')}</b><small>FC sur 14 jours</small></div><div class="kpi"><span>Part tickets</span><b>${Math.round(tv/(tv+tm)*100)} %</b><small>${fc(tv)}</small></div><div class="kpi"><span>Part Mobile Money</span><b>${Math.round(tm/(tv+tm)*100)} %</b><small>${fc(tm)}</small></div><div class="kpi"><span>Panier moyen</span><b>${Math.round(ok.reduce((a,p)=>a+p.amount,0)/ok.length).toLocaleString('fr-FR')}</b><small>FC par paiement</small></div></div>
+ `<div class="kpis"><div class="kpi"><span>Recettes totales</span><b>${(tv+tm).toLocaleString('fr-FR')}</b><small>FC sur 14 jours</small></div><div class="kpi"><span>Part tickets</span><b>${Math.round(tv/(tv+tm)*100)} %</b><small>${fc(tv)}</small></div><div class="kpi"><span>Part Mobile Money</span><b>${Math.round(tm/(tv+tm)*100)} %</b><small>${fc(tm)}</small></div><div class="kpi"><span>Panier moyen</span><b>${Math.round(ok.reduce((a,p)=>a+p.amount,0)/(ok.length||1)).toLocaleString('fr-FR')}</b><small>FC par paiement</small></div></div>
  <div class="grid2"><section class="panel"><h2>Recettes par forfait</h2>${byPlan.map(x=>hb(x.n,x.v,mx,fc(x.v))).join('')}</section>
  <section class="panel"><h2>Plus gros consommateurs</h2>${top.map(u=>hb(u.username,u.used,mu,vol(u.used))).join('')}</section></div>
  <div class="grid2"><section class="panel"><h2>Trafic par routeur (sessions en cours)</h2>${nasL.map(x=>hb(x.n,x.t,mt,vol(x.t))).join('')}</section>

@@ -1,0 +1,88 @@
+# HotSpot Pro : serveur complet pour tests en local.
+#   cp .env.example .env   puis   docker compose up --build
+# Console : http://localhost:8000   Portail : http://localhost:8000/portal/
+
+x-app: &app
+  build: ./backend
+  env_file: .env
+  environment:
+    DB_HOST: db
+    REDIS_URL: redis://redis:6379/0
+    CONSOLE_HTML: /app/console/index.html
+  volumes:
+    - ./index.html:/app/console/index.html:ro
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-radius}
+      POSTGRES_USER: ${DB_USER:-radius}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Définissez DB_PASSWORD dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    command: web
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 10s
+      retries: 30
+      start_period: 20s
+
+  worker:
+    <<: *app
+    command: worker
+
+  beat:
+    <<: *app
+    command: beat
+
+  radius:
+    image: freeradius/freeradius-server:latest-3.2
+    # -X : mode débogage, chaque requête RADIUS s'affiche dans les logs (docker compose logs -f radius).
+    # En production, remplacez par : command: ["-f", "-l", "stdout"]
+    command: ["-X"]
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-radius}
+      DB_USER: ${DB_USER:-radius}
+      DB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./freeradius/sql:/etc/freeradius/mods-enabled/sql:ro
+      - ./freeradius/sqlcounter:/etc/freeradius/mods-enabled/sqlcounter:ro
+      - ./freeradius/default:/etc/freeradius/sites-enabled/default:ro
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  pgdata:

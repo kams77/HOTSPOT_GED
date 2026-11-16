@@ -1,0 +1,13 @@
+# Temps de connexion cumulé : refuse la connexion quand Max-All-Session est atteint
+# et envoie au routeur le temps restant (Session-Timeout).
+sqlcounter noresetcounter {
+	sql_module_instance = sql
+	dialect = postgresql
+
+	counter_name = Max-All-Session-Time
+	check_name = Max-All-Session
+	key = User-Name
+	reset = never
+
+	$INCLUDE ${modconfdir}/sql/counter/${dialect}/${.:instance}.conf
+}

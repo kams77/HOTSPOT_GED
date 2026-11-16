@@ -1,0 +1,47 @@
+# Module SQL de FreeRADIUS 3.2 relié à la base PostgreSQL de HotSpot Pro.
+# Les tables sont créées par les migrations Django (application « radius »).
+sql {
+	dialect = "postgresql"
+	driver = "rlm_sql_${dialect}"
+
+	postgresql {
+		send_application_name = yes
+	}
+
+	server = "$ENV{DB_HOST}"
+	port = 5432
+	login = "$ENV{DB_USER}"
+	password = "$ENV{DB_PASSWORD}"
+	radius_db = "$ENV{DB_NAME}"
+
+	acct_table1 = "radacct"
+	acct_table2 = "radacct"
+	postauth_table = "radpostauth"
+	authcheck_table = "radcheck"
+	groupcheck_table = "radgroupcheck"
+	authreply_table = "radreply"
+	groupreply_table = "radgroupreply"
+	usergroup_table = "radusergroup"
+
+	delete_stale_sessions = yes
+
+	pool {
+		start = 2
+		min = 2
+		max = 16
+		spare = 4
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+
+	# Les routeurs (NAS) sont lus dans la table « nas » au démarrage.
+	# Après avoir ajouté un routeur dans la console : docker compose restart radius
+	read_clients = yes
+	client_table = "nas"
+
+	group_attribute = "SQL-Group"
+
+	$INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+}
